@@ -1,17 +1,7 @@
 package com.tn.data.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.BooleanNode;
-import com.fasterxml.jackson.databind.node.DecimalNode;
-import com.fasterxml.jackson.databind.node.DoubleNode;
-import com.fasterxml.jackson.databind.node.FloatNode;
-import com.fasterxml.jackson.databind.node.IntNode;
-import com.fasterxml.jackson.databind.node.LongNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import com.tn.data.domain.Column;
-import com.tn.data.domain.Field;
+import static com.tn.lang.Characters.UNDERSCORE;
 
-import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -26,13 +16,25 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
+import javax.sql.DataSource;
 
-import static com.tn.lang.Characters.UNDERSCORE;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.DecimalNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.FloatNode;
+import com.fasterxml.jackson.databind.node.IntNode;
+import com.fasterxml.jackson.databind.node.LongNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+
+import com.tn.data.domain.Column;
+import com.tn.data.domain.Field;
 
 public class Fields
 {
   private static final String COLUMN_NAME = "COLUMN_NAME";
   private static final String DATA_TYPE = "DATA_TYPE";
+  private static final String IS_NULLABLE = "IS_NULLABLE";
 
   private Fields() {}
 
@@ -75,11 +77,12 @@ public class Fields
       while (resultSet.next())
       {
         String columnName = resultSet.getString(COLUMN_NAME);
+        int columnType = resultSet.getInt(DATA_TYPE);
         fields.add(
           new Field(
             toFieldName(columnName),
-            toFieldType(resultSet.getInt(DATA_TYPE)),
-            new Column(columnName, keyColumnNames.contains(columnName))
+            toFieldType(columnType),
+            new Column(columnName, columnType, keyColumnNames.contains(columnName), resultSet.getBoolean(IS_NULLABLE))
           )
         );
       }
@@ -115,7 +118,7 @@ public class Fields
       }
       else
       {
-        fieldName.append(c);
+        fieldName.append(Character.toLowerCase(c));
       }
     }
 
@@ -126,7 +129,7 @@ public class Fields
   {
     return switch (dataType)
     {
-      case Types.BIT -> boolean.class;
+      case Types.BIT, Types.BOOLEAN -> boolean.class;
       case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> int.class;
       case Types.BIGINT -> long.class;
       case Types.FLOAT -> float.class;
