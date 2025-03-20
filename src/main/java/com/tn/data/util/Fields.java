@@ -48,23 +48,23 @@ public class Fields
 
   public static JsonNode read(Field field, ResultSet resultSet) throws SQLException
   {
-    if (field.type() == boolean.class) return read(resultSet.getBoolean(field.column().name()), BooleanNode::valueOf);
-    if (field.type() == int.class) return read(resultSet.getInt(field.column().name()), IntNode::valueOf);
-    if (field.type() == long.class) return read(resultSet.getLong(field.column().name()), LongNode::valueOf);
-    if (field.type() == float.class) return read(resultSet.getFloat(field.column().name()), FloatNode::valueOf);
-    if (field.type() == double.class) return read(resultSet.getDouble(field.column().name()), DoubleNode::valueOf);
-    if (field.type() == BigDecimal.class) return read(resultSet.getBigDecimal(field.column().name()), DecimalNode::valueOf);
-    if (field.type() == String.class) return read(resultSet.getString(field.column().name()), TextNode::valueOf);
-    if (field.type() == Date.class) return read(String.valueOf(resultSet.getDate(field.column().name())), TextNode::valueOf);
-    if (field.type() == Time.class) return read(String.valueOf(resultSet.getTime(field.column().name())), TextNode::valueOf);
-    if (field.type() == Timestamp.class) return read(String.valueOf(resultSet.getTimestamp(field.column().name())), TextNode::valueOf);
+    if (field.type() == boolean.class) return read(resultSet, resultSet.getBoolean(field.column().name()), BooleanNode::valueOf);
+    if (field.type() == int.class) return read(resultSet, resultSet.getInt(field.column().name()), IntNode::valueOf);
+    if (field.type() == long.class) return read(resultSet, resultSet.getLong(field.column().name()), LongNode::valueOf);
+    if (field.type() == float.class) return read(resultSet, resultSet.getFloat(field.column().name()), FloatNode::valueOf);
+    if (field.type() == double.class) return read(resultSet, resultSet.getDouble(field.column().name()), DoubleNode::valueOf);
+    if (field.type() == BigDecimal.class) return read(resultSet, resultSet.getBigDecimal(field.column().name()), DecimalNode::valueOf);
+    if (field.type() == String.class) return read(resultSet, resultSet.getString(field.column().name()), TextNode::valueOf);
+    if (field.type() == Date.class) return read(resultSet, String.valueOf(resultSet.getDate(field.column().name())), TextNode::valueOf);
+    if (field.type() == Time.class) return read(resultSet, String.valueOf(resultSet.getTime(field.column().name())), TextNode::valueOf);
+    if (field.type() == Timestamp.class) return read(resultSet, String.valueOf(resultSet.getTimestamp(field.column().name())), TextNode::valueOf);
 
     throw new IllegalArgumentException("Unsupported field type: " + field);
   }
 
-  private static <T> JsonNode read(T value, Function<T, JsonNode> mapper)
+  private static <T> JsonNode read(ResultSet resultSet, T value, Function<T, JsonNode> mapper) throws SQLException
   {
-    return value == null ? null : mapper.apply(value);
+    return resultSet.wasNull() || value == null ? null : mapper.apply(value);
   }
 
   private static Collection<Field> fields(String schema, String table, DatabaseMetaData databaseMetaData) throws SQLException
