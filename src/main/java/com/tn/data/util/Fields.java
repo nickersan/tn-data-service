@@ -35,6 +35,7 @@ public class Fields
 {
   private static final String COLUMN_NAME = "COLUMN_NAME";
   private static final String DATA_TYPE = "DATA_TYPE";
+  private static final String IS_AUTOINCREMENT = "IS_AUTOINCREMENT";
   private static final String IS_NULLABLE = "IS_NULLABLE";
 
   private Fields() {}
@@ -87,6 +88,24 @@ public class Fields
     throw new IllegalStateException("Unsupported value/field type: " + value + "/" + field);
   }
 
+  public static ObjectNode with(ObjectNode objectNode, Field field, Object value)
+  {
+    if (value instanceof Boolean && field.type() == boolean.class) objectNode.set(field.name(), BooleanNode.valueOf((Boolean)value));
+    else if (value instanceof Integer && field.type() == int.class) objectNode.set(field.name(), IntNode.valueOf((Integer)value));
+    else if (value instanceof Long && field.type() == long.class) objectNode.set(field.name(), LongNode.valueOf((Long)value));
+    else if (value instanceof Float && field.type() == float.class) objectNode.set(field.name(), FloatNode.valueOf((Float)value));
+    else if (value instanceof Double && field.type() == double.class) objectNode.set(field.name(), DoubleNode.valueOf((Double)value));
+    else if (value instanceof BigDecimal && field.type() == BigDecimal.class) objectNode.set(field.name(), DecimalNode.valueOf((BigDecimal)value));
+    else if (value instanceof String && field.type() == String.class) objectNode.set(field.name(), TextNode.valueOf((String)value));
+    else if (value instanceof Date && field.type() == Date.class) objectNode.set(field.name(), TextNode.valueOf(String.valueOf(value)));
+    else if (value instanceof Time && field.type() == Time.class) objectNode.set(field.name(), TextNode.valueOf(String.valueOf(value)));
+    else if (value instanceof Timestamp && field.type() == Timestamp.class) objectNode.set(field.name(), TextNode.valueOf(String.valueOf(value)));
+
+    if (objectNode.has(field.name())) return objectNode;
+
+    throw new IllegalArgumentException("Unsupported field type: " + field);
+  }
+
   private static <T> JsonNode get(ResultSet resultSet, T value, Function<T, JsonNode> mapper) throws SQLException
   {
     return resultSet.wasNull() || value == null ? null : mapper.apply(value);
@@ -107,7 +126,13 @@ public class Fields
           new Field(
             toFieldName(columnName),
             toFieldType(columnType),
-            new Column(columnName, columnType, keyColumnNames.contains(columnName), resultSet.getBoolean(IS_NULLABLE))
+            new Column(
+              columnName,
+              columnType,
+              keyColumnNames.contains(columnName),
+              resultSet.getBoolean(IS_NULLABLE),
+              resultSet.getBoolean(IS_AUTOINCREMENT)
+            )
           )
         );
       }

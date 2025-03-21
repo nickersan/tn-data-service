@@ -9,6 +9,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 
@@ -16,6 +18,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tn.data.domain.Field;
@@ -37,6 +41,8 @@ public class JdbcDataRepository implements DataRepository
 
   private final DataSource dataSource;
   private final Collection<Field> fields;
+  private final Collection<Field> autoIncrementFields;
+  private final Collection<Field> insertableFields;
   private final QueryParser<JdbcPredicate> queryParser;
   private final String select;
   private final String insert;
@@ -55,8 +61,11 @@ public class JdbcDataRepository implements DataRepository
     this.fields = fields;
     this.queryParser = queryParser;
 
+    this.autoIncrementFields = fields.stream().filter(field -> field.column().autoIncrement()).toList();
+    this.insertableFields = fields.stream().filter(field -> !field.column().autoIncrement()).toList();
+
     this.select = select(schema, table, fields);
-    this.insert = insert(schema, table, fields);
+    this.insert = insert(schema, table, insertableFields);
   }
 
   public JdbcDataRepository withBatchSize(int batchSize)
@@ -104,9 +113,23 @@ public class JdbcDataRepository implements DataRepository
   {
     try
     {
-      new JdbcTemplate(dataSource).update(insert, preparedStatement -> setValues(preparedStatement, new AtomicInteger(1), object));
+      KeyHolder keyHolder = new GeneratedKeyHolder();
 
-      //TODO: workout what to do with primary keys.
+      new JdbcTemplate(dataSource).update(
+        connection ->
+        {
+          PreparedStatement preparedStatement = connection.prepareStatement(
+            insert,
+            autoIncrementFields.isEmpty() ? PreparedStatement.NO_GENERATED_KEYS : PreparedStatement.RETURN_GENERATED_KEYS
+          );
+          setValues(preparedStatement, new AtomicInteger(1), object);
+          return preparedStatement;
+        },
+        keyHolder
+      );
+
+      setIdentifiers(keyHolder.getKeyList(), object);
+
       return object;
     }
     catch (DataAccessException e)
@@ -124,7 +147,7 @@ public class JdbcDataRepository implements DataRepository
       new JdbcTemplate(dataSource).batchUpdate(
         insert,
         objects,
-        10,
+        batchSize,
         (preparedStatement, object) -> setValues(preparedStatement, new AtomicInteger(1), object)
       );
 
@@ -133,6 +156,19 @@ public class JdbcDataRepository implements DataRepository
     catch (DataAccessException e)
     {
       throw new InsertException(e.getCause());
+    }
+  }
+
+  private void setIdentifiers(List<Map<String, Object>> identifiers, ObjectNode... objects)
+  {
+    if (identifiers.size() != objects.length) throw new InsertException("Identifier mismatch after insert");
+
+    for (int i = 0; i < objects.length; i++)
+    {
+      ObjectNode object = objects[i];
+      Map<String, Object> identifier = identifiers.get(i);
+
+      autoIncrementFields.forEach(field -> Fields.with(object, field, identifier.get(field.column().name())));
     }
   }
 
@@ -165,7 +201,7 @@ public class JdbcDataRepository implements DataRepository
   {
     try
     {
-      fields.forEach(wrapConsumer(setValue(preparedStatement, index, object)));
+      insertableFields.forEach(wrapConsumer(setValue(preparedStatement, index, object)));
     }
     catch (WrappedException e)
     {
@@ -194,14 +230,14 @@ public class JdbcDataRepository implements DataRepository
     );
   }
 
-  private String insert(String schema, String table, Collection<Field> fields)
+  private String insert(String schema, String table, Collection<Field> insertableFields)
   {
     return format(
       INSERT,
       schema,
       table,
-      fields.stream().map(field -> field.column().name()).collect(joining(COLUMN_SEPARATOR)),
-      (COLUMN_PLACEHOLDER + COLUMN_SEPARATOR).repeat(fields.size() - 1) + COLUMN_PLACEHOLDER
+      insertableFields.stream().map(field -> field.column().name()).collect(joining(COLUMN_SEPARATOR)),
+      (COLUMN_PLACEHOLDER + COLUMN_SEPARATOR).repeat(insertableFields.size() - 1) + COLUMN_PLACEHOLDER
     );
   }
 }

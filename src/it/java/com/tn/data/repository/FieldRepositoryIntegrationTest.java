@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -38,9 +39,8 @@ class FieldRepositoryIntegrationTest
   @Autowired
   FieldRepository fieldRepository;
 
-
   @ParameterizedTest
-  @MethodSource("types")
+  @MethodSource({"types"})
   @Sql(executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD, statements = "DROP TABLE PUBLIC.TEST")
   void shouldFindFields(int columnType, Class<?> fieldType) throws Exception
   {
@@ -48,9 +48,9 @@ class FieldRepositoryIntegrationTest
 
     assertEquals(
       List.of(
-        new Field("id", int.class, new Column("ID", Types.INTEGER, true, false)),
-        new Field("value1", fieldType, new Column("VALUE_1", columnType, false, false)),
-        new Field("value2", fieldType, new Column("VALUE_2", columnType, false, true))
+        new Field("id", int.class, new Column("ID", Types.INTEGER, true, false, false)),
+        new Field("value1", fieldType, new Column("VALUE_1", columnType, false, false, false)),
+        new Field("value2", fieldType, new Column("VALUE_2", columnType, false, true, false))
       ),
       fieldRepository.findForTable(SCHEMA, TABLE)
     );
@@ -76,7 +76,28 @@ class FieldRepositoryIntegrationTest
     );
   }
 
+  @Test
+  @Sql(executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD, statements = "DROP TABLE PUBLIC.TEST")
+  void shouldFindFieldsWithAutoIncrement() throws Exception
+  {
+    createTable(Types.VARCHAR, true);
+
+    assertEquals(
+      List.of(
+        new Field("id", long.class, new Column("ID", Types.BIGINT, true, false, true)),
+        new Field("value1", String.class, new Column("VALUE_1", Types.VARCHAR, false, false, false)),
+        new Field("value2", String.class, new Column("VALUE_2", Types.VARCHAR, false, true, false))
+      ),
+      fieldRepository.findForTable(SCHEMA, TABLE)
+    );
+  }
+
   private void createTable(int type) throws SQLException, IllegalAccessException
+  {
+    createTable(type, false);
+  }
+
+  private void createTable(int type, boolean autoIncrement) throws SQLException, IllegalAccessException
   {
     try (
       Connection connection = dataSource.getConnection();
@@ -89,13 +110,14 @@ class FieldRepositoryIntegrationTest
         format(
           """
           CREATE TABLE %1$s.%2$s (
-            id INT NOT NULL PRIMARY KEY,
-            value_1 %3$s NOT NULL,
-            value_2 %3$s NULL
+            id %3$s PRIMARY KEY,
+            value_1 %4$s NOT NULL,
+            value_2 %4$s NULL
           );
           """,
           SCHEMA,
           TABLE,
+          autoIncrement ? "IDENTITY" : "INT NOT NULL",
           typeName
         )
       );
