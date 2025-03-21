@@ -150,6 +150,38 @@ class JdbcDataRepositoryIntegrationTest
       .map(arguments -> Arguments.of(arguments.toArray()));
   }
 
+  @Test
+  void shouldInsert()
+  {
+    LocalDateTime now = LocalDateTime.now();
+
+    ObjectNode object1 = objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
+    ObjectNode object2 = objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
+    ObjectNode object3 = objectNode(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
+
+    assertEquals(object1, dataRepository.insert(object1));
+    assertEquals(object2, dataRepository.insert(object2));
+    assertEquals(object3, dataRepository.insert(object3));
+    assertEquals(List.of(object1, object2, object3), dataRepository.findAll());
+  }
+
+  @Test
+  void shouldInsertInBatches()
+  {
+    LocalDateTime now = LocalDateTime.now();
+
+    List<ObjectNode> objects = List.of(
+      objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1)),
+      objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now),
+      objectNode(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1))
+    );
+
+    ((JdbcDataRepository)dataRepository).withBatchSize(2);
+
+    assertEquals(objects, dataRepository.insert(objects));
+    assertEquals(objects, dataRepository.findAll());
+  }
+
   private static Stream<List<Object>> queryArguments(ObjectNode objectNode)
   {
     return StreamSupport.stream(Spliterators.spliteratorUnknownSize(objectNode.fieldNames(), Spliterator.ORDERED), false)

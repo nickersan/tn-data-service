@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.FloatNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.LongNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 import com.tn.data.domain.Column;
@@ -46,23 +47,47 @@ public class Fields
     }
   }
 
-  public static JsonNode read(Field field, ResultSet resultSet) throws SQLException
+  public static JsonNode get(Field field, ResultSet resultSet) throws SQLException
   {
-    if (field.type() == boolean.class) return read(resultSet, resultSet.getBoolean(field.column().name()), BooleanNode::valueOf);
-    if (field.type() == int.class) return read(resultSet, resultSet.getInt(field.column().name()), IntNode::valueOf);
-    if (field.type() == long.class) return read(resultSet, resultSet.getLong(field.column().name()), LongNode::valueOf);
-    if (field.type() == float.class) return read(resultSet, resultSet.getFloat(field.column().name()), FloatNode::valueOf);
-    if (field.type() == double.class) return read(resultSet, resultSet.getDouble(field.column().name()), DoubleNode::valueOf);
-    if (field.type() == BigDecimal.class) return read(resultSet, resultSet.getBigDecimal(field.column().name()), DecimalNode::valueOf);
-    if (field.type() == String.class) return read(resultSet, resultSet.getString(field.column().name()), TextNode::valueOf);
-    if (field.type() == Date.class) return read(resultSet, String.valueOf(resultSet.getDate(field.column().name())), TextNode::valueOf);
-    if (field.type() == Time.class) return read(resultSet, String.valueOf(resultSet.getTime(field.column().name())), TextNode::valueOf);
-    if (field.type() == Timestamp.class) return read(resultSet, String.valueOf(resultSet.getTimestamp(field.column().name())), TextNode::valueOf);
+    if (field.type() == boolean.class) return get(resultSet, resultSet.getBoolean(field.column().name()), BooleanNode::valueOf);
+    if (field.type() == int.class) return get(resultSet, resultSet.getInt(field.column().name()), IntNode::valueOf);
+    if (field.type() == long.class) return get(resultSet, resultSet.getLong(field.column().name()), LongNode::valueOf);
+    if (field.type() == float.class) return get(resultSet, resultSet.getFloat(field.column().name()), FloatNode::valueOf);
+    if (field.type() == double.class) return get(resultSet, resultSet.getDouble(field.column().name()), DoubleNode::valueOf);
+    if (field.type() == BigDecimal.class) return get(resultSet, resultSet.getBigDecimal(field.column().name()), DecimalNode::valueOf);
+    if (field.type() == String.class) return get(resultSet, resultSet.getString(field.column().name()), TextNode::valueOf);
+    if (field.type() == Date.class) return get(resultSet, String.valueOf(resultSet.getDate(field.column().name())), TextNode::valueOf);
+    if (field.type() == Time.class) return get(resultSet, String.valueOf(resultSet.getTime(field.column().name())), TextNode::valueOf);
+    if (field.type() == Timestamp.class) return get(resultSet, String.valueOf(resultSet.getTimestamp(field.column().name())), TextNode::valueOf);
 
     throw new IllegalArgumentException("Unsupported field type: " + field);
   }
 
-  private static <T> JsonNode read(ResultSet resultSet, T value, Function<T, JsonNode> mapper) throws SQLException
+  public static Object get(Field field, ObjectNode object)
+  {
+    JsonNode value = object.get(field.name());
+
+    if (value == null || value.isNull())
+    {
+      if (field.column().nullable()) return null;
+      else throw new IllegalStateException("Field " + field.name() + " does not allow nulls");
+    }
+
+    if (value.isBoolean() && field.type() == boolean.class) return value.asBoolean();
+    if (value.isInt() && field.type() == int.class) return value.asInt();
+    if (value.isLong() && field.type() == long.class) return value.asLong();
+    if (value.isFloat() && field.type() == float.class) return value.floatValue();
+    if (value.isDouble() && field.type() == double.class) return value.doubleValue();
+    if (value.isBigDecimal() && field.type() == BigDecimal.class) return value.decimalValue();
+    if (value.isTextual() && field.type() == String.class) return value.textValue();
+    if (value.isTextual() && field.type() == Date.class) return Date.valueOf(value.textValue());
+    if (value.isTextual() && field.type() == Time.class) return Time.valueOf(value.textValue());
+    if (value.isTextual() && field.type() == Timestamp.class) return Timestamp.valueOf(value.textValue());
+
+    throw new IllegalStateException("Unsupported value/field type: " + value + "/" + field);
+  }
+
+  private static <T> JsonNode get(ResultSet resultSet, T value, Function<T, JsonNode> mapper) throws SQLException
   {
     return resultSet.wasNull() || value == null ? null : mapper.apply(value);
   }

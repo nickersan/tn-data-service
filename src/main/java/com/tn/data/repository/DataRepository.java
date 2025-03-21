@@ -9,4 +9,8 @@ public interface DataRepository
   Collection<ObjectNode> findAll() throws FindException;
 
   Collection<ObjectNode> findFor(String query) throws FindException;
+
+  ObjectNode insert(ObjectNode object) throws InsertException;
+
+  Collection<ObjectNode> insert(Collection<ObjectNode> objects) throws InsertException;
 }

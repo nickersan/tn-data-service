@@ -1,6 +1,6 @@
 package com.tn.data.repository;
 
-public class FindException extends RuntimeException
+public class FindException extends RepositoryException
 {
   public FindException(Throwable cause)
   {
