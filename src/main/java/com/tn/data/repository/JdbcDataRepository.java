@@ -128,7 +128,7 @@ public class JdbcDataRepository implements DataRepository
         keyHolder
       );
 
-      setIdentifiers(keyHolder.getKeyList(), object);
+      if (!autoIncrementFields.isEmpty()) setIdentifiers(keyHolder.getKeyList(), object);
 
       return object;
     }

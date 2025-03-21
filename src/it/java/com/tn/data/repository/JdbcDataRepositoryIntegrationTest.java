@@ -39,6 +39,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.jdbc.Sql;
 
 import com.tn.lang.util.function.WrappedException;
@@ -129,6 +130,7 @@ class JdbcDataRepositoryIntegrationTest
   }
 
   @Nested
+  @DirtiesContext
   @Sql(
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS,
     statements = """
@@ -245,6 +247,7 @@ class JdbcDataRepositoryIntegrationTest
   }
 
   @Nested
+  @DirtiesContext
   @Sql(
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS,
     statements = """
@@ -303,6 +306,7 @@ class JdbcDataRepositoryIntegrationTest
   }
 
   @Nested
+  @DirtiesContext
   @Sql(
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS,
     statements = """
