@@ -3,20 +3,26 @@ package com.tn.data.repository;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.joining;
 
+import static com.google.common.collect.Lists.partition;
+
 import static com.tn.lang.util.function.Lambdas.wrapConsumer;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
+import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -39,7 +45,7 @@ public class JdbcDataRepository implements DataRepository
   private static final String INSERT = "INSERT INTO %s.%s(%s) VALUES (%s)";
   private static final String WHERE = "%s WHERE %s";
 
-  private final DataSource dataSource;
+  private final JdbcTemplate jdbcTemplate;
   private final Collection<Field> fields;
   private final Collection<Field> autoIncrementFields;
   private final Collection<Field> insertableFields;
@@ -57,7 +63,7 @@ public class JdbcDataRepository implements DataRepository
     QueryParser<JdbcPredicate> queryParser
   )
   {
-    this.dataSource = dataSource;
+    this.jdbcTemplate = new JdbcTemplate(dataSource);
     this.fields = fields;
     this.queryParser = queryParser;
 
@@ -79,7 +85,7 @@ public class JdbcDataRepository implements DataRepository
   {
     try
     {
-      return new JdbcTemplate(dataSource).query(select, this::toObject);
+      return jdbcTemplate.query(select, this::toObject);
     }
     catch (DataAccessException e)
     {
@@ -95,7 +101,7 @@ public class JdbcDataRepository implements DataRepository
       JdbcPredicate predicate = queryParser.parse(query);
 
       //noinspection SqlSourceToSinkFlow
-      return new JdbcTemplate(dataSource).query(
+      return jdbcTemplate.query(
         WHERE.formatted(select, predicate.toSql()),
         predicate::setValues,
         this::toObject
@@ -115,7 +121,7 @@ public class JdbcDataRepository implements DataRepository
     {
       KeyHolder keyHolder = new GeneratedKeyHolder();
 
-      new JdbcTemplate(dataSource).update(
+      jdbcTemplate.update(
         connection ->
         {
           PreparedStatement preparedStatement = connection.prepareStatement(
@@ -128,9 +134,9 @@ public class JdbcDataRepository implements DataRepository
         keyHolder
       );
 
-      if (!autoIncrementFields.isEmpty()) setIdentifiers(keyHolder.getKeyList(), object);
+      if (autoIncrementFields.isEmpty()) return object;
 
-      return object;
+      return withIdentifiers(object, keyHolder.getKeyList().getFirst());
     }
     catch (DataAccessException e)
     {
@@ -142,16 +148,29 @@ public class JdbcDataRepository implements DataRepository
   @Transactional
   public Collection<ObjectNode> insert(Collection<ObjectNode> objects) throws InsertException
   {
+    if (!(objects instanceof List)) return insert(List.copyOf(objects));
+
     try
     {
-      new JdbcTemplate(dataSource).batchUpdate(
-        insert,
-        objects,
-        batchSize,
-        (preparedStatement, object) -> setValues(preparedStatement, new AtomicInteger(1), object)
-      );
+      Collection<ObjectNode> persistedObjects = new ArrayList<>();
 
-      return objects;
+      for (List<ObjectNode> batch : partition((List<ObjectNode>)objects, batchSize))
+      {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+
+        jdbcTemplate.batchUpdate(
+          connection -> connection.prepareStatement(
+            insert,
+            autoIncrementFields.isEmpty() ? PreparedStatement.NO_GENERATED_KEYS : PreparedStatement.RETURN_GENERATED_KEYS
+          ),
+          batchPreparedStatementSetter(batch),
+          keyHolder
+        );
+
+        persistedObjects.addAll(autoIncrementFields.isEmpty() ? batch : withIdentifiers(batch, keyHolder.getKeyList()));
+      }
+
+      return persistedObjects;
     }
     catch (DataAccessException e)
     {
@@ -159,17 +178,44 @@ public class JdbcDataRepository implements DataRepository
     }
   }
 
-  private void setIdentifiers(List<Map<String, Object>> identifiers, ObjectNode... objects)
+  private BatchPreparedStatementSetter batchPreparedStatementSetter(List<ObjectNode> objects)
   {
-    if (identifiers.size() != objects.length) throw new InsertException("Identifier mismatch after insert");
-
-    for (int i = 0; i < objects.length; i++)
+    return new BatchPreparedStatementSetter()
     {
-      ObjectNode object = objects[i];
-      Map<String, Object> identifier = identifiers.get(i);
+      @Override
+      public void setValues(@Nonnull PreparedStatement preparedStatement, int index) throws SQLException
+      {
+        JdbcDataRepository.this.setValues(preparedStatement, new AtomicInteger(1), objects.get(index));
+      }
 
-      autoIncrementFields.forEach(field -> Fields.with(object, field, identifier.get(field.column().name())));
+      @Override
+      public int getBatchSize()
+      {
+        return objects.size();
+      }
+    };
+  }
+
+  private List<ObjectNode> withIdentifiers(List<ObjectNode> objects, List<Map<String, Object>> identifiers)
+  {
+    if (identifiers.size() != objects.size()) throw new InsertException("Identifier mismatch after insert");
+
+    return IntStream.range(0, objects.size())
+      .mapToObj(i -> withIdentifiers(objects.get(i), identifiers.get(i)))
+      .toList();
+  }
+
+  private ObjectNode withIdentifiers(ObjectNode object, Map<String, Object> identifiers)
+  {
+    ObjectNode objectWithIdentifier = new ObjectNode(null);
+
+    for (Field field : fields)
+    {
+      if (field.column().autoIncrement()) Fields.with(objectWithIdentifier, field, identifiers.get(field.column().name()));
+      else if (object.has(field.name())) objectWithIdentifier.set(field.name(), object.get(field.name()));
     }
+
+    return objectWithIdentifier;
   }
 
   private ObjectNode toObject(ResultSet resultSet, int i)

@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import javax.sql.DataSource;
@@ -298,7 +299,7 @@ class JdbcDataRepositoryIntegrationTest
         objectNode(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1))
       );
 
-      ((JdbcDataRepository)dataRepository).withBatchSize(2);
+      DataRepository dataRepository = ((JdbcDataRepository)JdbcDataRepositoryIntegrationTest.this.dataRepository).withBatchSize(2);
 
       assertEquals(objects, dataRepository.insert(objects));
       assertEquals(objects, dataRepository.findAll());
@@ -331,6 +332,8 @@ class JdbcDataRepositoryIntegrationTest
   )
   class InsertWithAutoIncrementId
   {
+    private static final AtomicLong EXPECTED_ID = new AtomicLong(1);
+
     @Test
     void shouldInsert()
     {
@@ -341,16 +344,36 @@ class JdbcDataRepositoryIntegrationTest
       ObjectNode object3 = objectNode(null, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
 
       ObjectNode persistedObject1 = dataRepository.insert(object1);
-      assertEquals(object1.set("id", LongNode.valueOf(1)), persistedObject1);
+      assertEquals(object1.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject1);
 
       ObjectNode persistedObject2 = dataRepository.insert(object2);
-      assertEquals(object2.set("id", LongNode.valueOf(2)), persistedObject2);
+      assertEquals(object2.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject2);
 
       ObjectNode persistedObject3 = dataRepository.insert(object3);
-      assertEquals(object3.set("id", LongNode.valueOf(2)), persistedObject3);
+      assertEquals(object3.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject3);
 
-      // Objects match, but fields are in a different order.
-//      assertEquals(List.of(persistedObject1, persistedObject2, persistedObject3), dataRepository.findAll());
+      assertEquals(List.of(persistedObject1, persistedObject2, persistedObject3), dataRepository.findAll());
+    }
+
+    @Test
+    void shouldInsertInBatches()
+    {
+      LocalDateTime now = LocalDateTime.now();
+
+      ObjectNode object1 = objectNode(null, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
+      ObjectNode object2 = objectNode(null, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
+      ObjectNode object3 = objectNode(null, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
+
+      DataRepository dataRepository = ((JdbcDataRepository)JdbcDataRepositoryIntegrationTest.this.dataRepository).withBatchSize(2);
+
+      List<ObjectNode> expectedObjects = List.of(
+        object1.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())),
+        object2.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())),
+        object3.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement()))
+      );
+
+      assertEquals(expectedObjects, dataRepository.insert(List.of(object1, object2, object3)));
+      assertEquals(expectedObjects, dataRepository.findAll());
     }
   }
 }
