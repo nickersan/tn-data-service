@@ -1,19 +1,17 @@
 package com.tn.data.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import static com.tn.lang.util.function.Lambdas.unwrapException;
-import static com.tn.lang.util.function.Lambdas.wrapConsumer;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Date;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -156,28 +154,33 @@ class JdbcDataRepositoryIntegrationTest
   )
   class Find
   {
-    private static final String INSERT = """
-        INSERT INTO PUBLIC.TEST (
-          id,
-          boolean_value,
-          integer_value,
-          long_value,
-          float_value,
-          double_value,
-          decimal_value,
-          string_value,
-          date_value,
-          time_value,
-          timestamp_value
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      """;
+    @Test
+    void shouldFind()
+    {
+      ObjectNode object1 = dataRepository.insert(objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode object2 = dataRepository.insert(objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
+      ObjectNode object3 = dataRepository.insert(objectNode(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
+
+      assertEquals(object1, dataRepository.find(object1).orElse(null));
+      assertEquals(object2, dataRepository.find(object2).orElse(null));
+      assertEquals(object3, dataRepository.find(object3).orElse(null));
+    }
 
     @Test
-    void shouldFindAll() throws Exception
+    void shouldNotFind()
     {
-      ObjectNode object1 = insert(objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
-      ObjectNode object2 = insert(objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
-      ObjectNode object3 = insert(objectNode(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
+      ObjectNode key = new ObjectNode(null);
+      key.set("id", IntNode.valueOf(1));
+
+      assertTrue(dataRepository.find(key).isEmpty());
+    }
+
+    @Test
+    void shouldFindAll()
+    {
+      ObjectNode object1 = dataRepository.insert(objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode object2 = dataRepository.insert(objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
+      ObjectNode object3 = dataRepository.insert(objectNode(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
 
       assertEquals(List.of(object1, object2, object3), dataRepository.findAll());
     }
@@ -188,7 +191,7 @@ class JdbcDataRepositoryIntegrationTest
     {
       try
       {
-        objectNodes.forEach(wrapConsumer(this::insert));
+        dataRepository.insert(objectNodes);
 
         assertEquals(List.of(objectNode), dataRepository.findFor(query));
       }
@@ -219,31 +222,6 @@ class JdbcDataRepositoryIntegrationTest
       return StreamSupport.stream(Spliterators.spliteratorUnknownSize(objectNode.fieldNames(), Spliterator.ORDERED), false)
         .map(fieldName -> fieldName + "=" + (objectNode.has(fieldName) ? objectNode.get(fieldName).asText() : "null"))
         .map(query -> new ArrayList<>(List.of(query, objectNode)));
-    }
-
-    private ObjectNode insert(ObjectNode objectNode) throws SQLException
-    {
-      try (
-        Connection connection = dataSource.getConnection();
-        PreparedStatement preparedStatement = connection.prepareStatement(INSERT)
-      )
-      {
-        preparedStatement.setInt(1, objectNode.get("id").asInt());
-        if (objectNode.has("booleanValue")) preparedStatement.setBoolean(2, objectNode.get("booleanValue").asBoolean());
-        else preparedStatement.setNull(2, Types.BOOLEAN);
-        preparedStatement.setInt(3, objectNode.get("integerValue").asInt());
-        preparedStatement.setLong(4, objectNode.get("longValue").asLong());
-        preparedStatement.setFloat(5, objectNode.get("floatValue").floatValue());
-        preparedStatement.setDouble(6, objectNode.get("doubleValue").doubleValue());
-        preparedStatement.setBigDecimal(7, objectNode.get("decimalValue").decimalValue());
-        preparedStatement.setString(8, objectNode.get("stringValue").asText());
-        preparedStatement.setDate(9, Date.valueOf(objectNode.get("dateValue").asText()));
-        preparedStatement.setTime(10, Time.valueOf(objectNode.get("timeValue").asText()));
-        preparedStatement.setTimestamp(11, Timestamp.valueOf(objectNode.get("timestampValue").asText()));
-        preparedStatement.execute();
-      }
-
-      return objectNode;
     }
   }
 
@@ -374,6 +352,50 @@ class JdbcDataRepositoryIntegrationTest
 
       assertEquals(expectedObjects, dataRepository.insert(List.of(object1, object2, object3)));
       assertEquals(expectedObjects, dataRepository.findAll());
+    }
+  }
+
+  @Nested
+  @DirtiesContext
+  @Sql(
+    executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS,
+    statements = """
+      CREATE TABLE PUBLIC.TEST (
+        id              INT              NOT NULL PRIMARY KEY,
+        boolean_value   BOOLEAN          NULL,
+        integer_value   INTEGER          NOT NULL,
+        long_value      LONG             NOT NULL,
+        float_value     FLOAT            NOT NULL,
+        double_value    DOUBLE PRECISION NOT NULL,
+        decimal_value   DECIMAL(3, 2)    NOT NULL,
+        string_value    VARCHAR(10)      NOT NULL,
+        date_value      DATE             NOT NULL,
+        time_value      TIME             NOT NULL,
+        timestamp_value TIMESTAMP        NOT NULL
+      );
+    """
+  )
+  @Sql(
+    executionPhase = Sql.ExecutionPhase.AFTER_TEST_CLASS,
+    statements = "DROP TABLE PUBLIC.TEST"
+  )
+  class Update
+  {
+    @Test
+    void shouldUpdate()
+    {
+      ObjectNode object = dataRepository.insert(objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+
+      ObjectNode mutation = new ObjectNode(null);
+      mutation.set("id", object.get("id"));
+      mutation.set("booleanValue", BooleanNode.valueOf(false));
+
+      ObjectNode mutated = new ObjectNode(null);
+      mutated.setAll(object);
+      mutated.setAll(mutation);
+
+      assertEquals(mutated, dataRepository.update(mutation));
+      assertEquals(mutated, dataRepository.find(mutation).orElse(null));
     }
   }
 }

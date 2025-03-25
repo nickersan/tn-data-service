@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
@@ -41,17 +42,23 @@ public class JdbcDataRepository implements DataRepository
   private static final String COLUMN_PLACEHOLDER = "?";
   private static final String COLUMN_SEPARATOR = ", ";
   private static final int DEFAULT_BATCH_SIZE = 50;
+  private static final String FIELD_PLACEHOLDER = "%s = ?";
+  private static final String LOGICAL_AND = " AND ";
   private static final String SELECT = "SELECT %s FROM %s.%s";
   private static final String INSERT = "INSERT INTO %s.%s(%s) VALUES (%s)";
+  private static final String UPDATE = "UPDATE %s.%s SET %s WHERE %s";
   private static final String WHERE = "%s WHERE %s";
 
   private final JdbcTemplate jdbcTemplate;
   private final Collection<Field> fields;
   private final Collection<Field> autoIncrementFields;
-  private final Collection<Field> insertableFields;
+  private final Collection<Field> keyFields;
+  private final Collection<Field> mutableFields;
   private final QueryParser<JdbcPredicate> queryParser;
   private final String select;
   private final String insert;
+  private final String schema;
+  private final String table;
 
   private int batchSize = DEFAULT_BATCH_SIZE;
 
@@ -64,20 +71,44 @@ public class JdbcDataRepository implements DataRepository
   )
   {
     this.jdbcTemplate = new JdbcTemplate(dataSource);
+    this.schema = schema;
+    this.table = table;
     this.fields = fields;
     this.queryParser = queryParser;
 
     this.autoIncrementFields = fields.stream().filter(field -> field.column().autoIncrement()).toList();
-    this.insertableFields = fields.stream().filter(field -> !field.column().autoIncrement()).toList();
+    this.keyFields = fields.stream().filter(field -> field.column().key()).toList();
+    this.mutableFields = fields.stream().filter(field -> !field.column().key()).toList();
 
     this.select = select(schema, table, fields);
-    this.insert = insert(schema, table, insertableFields);
+    this.insert = insert(schema, table, fields);
   }
 
   public JdbcDataRepository withBatchSize(int batchSize)
   {
     this.batchSize = batchSize;
     return this;
+  }
+
+  @Override
+  public Optional<ObjectNode> find(ObjectNode key) throws FindException
+  {
+    try
+    {
+      //noinspection SqlSourceToSinkFlow
+      return jdbcTemplate.query(
+        WHERE.formatted(
+          select,
+          keyFields.stream().map(field -> FIELD_PLACEHOLDER.formatted(field.column().name())).collect(joining(LOGICAL_AND))
+        ),
+        preparedStatement -> setValues(preparedStatement, parameterIndex(), key, keyFields),
+        this::toObject
+      ).stream().findFirst();
+    }
+    catch (DataAccessException e)
+    {
+      throw new FindException(e.getCause());
+    }
   }
 
   @Override
@@ -128,7 +159,9 @@ public class JdbcDataRepository implements DataRepository
             insert,
             autoIncrementFields.isEmpty() ? PreparedStatement.NO_GENERATED_KEYS : PreparedStatement.RETURN_GENERATED_KEYS
           );
-          setValues(preparedStatement, new AtomicInteger(1), object);
+          AtomicInteger parameterIndex = parameterIndex();
+          setValues(preparedStatement, parameterIndex, object, keyFields.stream().filter(keyField -> !keyField.column().autoIncrement()).toList());
+          setValues(preparedStatement, parameterIndex, object, mutableFields);
           return preparedStatement;
         },
         keyHolder
@@ -178,6 +211,27 @@ public class JdbcDataRepository implements DataRepository
     }
   }
 
+  @Override
+  @Transactional
+  public ObjectNode update(ObjectNode object) throws UpdateException
+  {
+    Collection<Field> updatableFields = mutableFields.stream().filter(field -> object.has(field.name())).toList();
+    if (updatableFields.isEmpty()) return object;
+
+    //noinspection SqlSourceToSinkFlow
+    jdbcTemplate.update(
+      update(updatableFields),
+      preparedStatement ->
+      {
+        AtomicInteger parameterIndex = parameterIndex();
+        setValues(preparedStatement, parameterIndex, object, updatableFields);
+        setValues(preparedStatement, parameterIndex, object, keyFields);
+      }
+    );
+
+    return find(object).orElseThrow(() -> new UpdateException("Failed to find object after update: " + object));
+  }
+
   private BatchPreparedStatementSetter batchPreparedStatementSetter(List<ObjectNode> objects)
   {
     return new BatchPreparedStatementSetter()
@@ -185,7 +239,10 @@ public class JdbcDataRepository implements DataRepository
       @Override
       public void setValues(@Nonnull PreparedStatement preparedStatement, int index) throws SQLException
       {
-        JdbcDataRepository.this.setValues(preparedStatement, new AtomicInteger(1), objects.get(index));
+        AtomicInteger parameterIndex = parameterIndex();
+
+        JdbcDataRepository.this.setValues(preparedStatement, parameterIndex, objects.get(index), keyFields.stream().filter(keyField -> !keyField.column().autoIncrement()).toList());
+        JdbcDataRepository.this.setValues(preparedStatement, parameterIndex, objects.get(index), mutableFields);
       }
 
       @Override
@@ -221,7 +278,8 @@ public class JdbcDataRepository implements DataRepository
   private ObjectNode toObject(ResultSet resultSet, int i)
   {
     ObjectNode object = new ObjectNode(null);
-    fields.forEach(field -> setField(object, field.name(), get(field, resultSet)));
+    keyFields.forEach(field -> setField(object, field.name(), get(field, resultSet)));
+    mutableFields.forEach(field -> setField(object, field.name(), get(field, resultSet)));
 
     return object;
   }
@@ -243,11 +301,11 @@ public class JdbcDataRepository implements DataRepository
     }
   }
 
-  private void setValues(PreparedStatement preparedStatement, AtomicInteger index, ObjectNode object) throws SQLException
+  private void setValues(PreparedStatement preparedStatement, AtomicInteger index, ObjectNode object, Collection<Field> fields) throws SQLException
   {
     try
     {
-      insertableFields.forEach(wrapConsumer(setValue(preparedStatement, index, object)));
+      fields.forEach(wrapConsumer(setValue(preparedStatement, index, object)));
     }
     catch (WrappedException e)
     {
@@ -276,14 +334,32 @@ public class JdbcDataRepository implements DataRepository
     );
   }
 
-  private String insert(String schema, String table, Collection<Field> insertableFields)
+  private String insert(String schema, String table, Collection<Field> fields)
   {
+    Collection<Field> insertableFields = fields.stream().filter(field -> !field.column().autoIncrement()).toList();
+
     return format(
       INSERT,
       schema,
       table,
-      insertableFields.stream().map(field -> field.column().name()).collect(joining(COLUMN_SEPARATOR)),
+      insertableFields.stream().map(insertableField -> insertableField.column().name()).collect(joining(COLUMN_SEPARATOR)),
       (COLUMN_PLACEHOLDER + COLUMN_SEPARATOR).repeat(insertableFields.size() - 1) + COLUMN_PLACEHOLDER
     );
+  }
+
+  private String update(Collection<Field> updatableFields)
+  {
+    return format(
+      UPDATE,
+      schema,
+      table,
+      updatableFields.stream().map(field -> format(FIELD_PLACEHOLDER, field.column().name())).collect(joining(COLUMN_SEPARATOR)),
+      keyFields.stream().map(field -> format(FIELD_PLACEHOLDER, field.column().name())).collect(joining(LOGICAL_AND))
+    );
+  }
+
+  private AtomicInteger parameterIndex()
+  {
+    return new AtomicInteger(1);
   }
 }
