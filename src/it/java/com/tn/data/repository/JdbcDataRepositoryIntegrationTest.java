@@ -2,7 +2,6 @@ package com.tn.data.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import static com.tn.lang.util.function.Lambdas.unwrapException;
 
@@ -216,13 +215,12 @@ class JdbcDataRepositoryIntegrationTest
     }
 
     @Test
-    void shouldNotFindAll()
+    void shouldNotFindAllWithKeys()
     {
-      fail("Implement this");
       ObjectNode key = new ObjectNode(null);
       key.set("id", IntNode.valueOf(1));
 
-      assertTrue(dataRepository.find(key).isEmpty());
+      assertTrue(dataRepository.findAll(List.of(key)).isEmpty());
     }
 
     @ParameterizedTest
