@@ -2,6 +2,7 @@ package com.tn.data.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import static com.tn.lang.util.function.Lambdas.unwrapException;
 
@@ -15,6 +16,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicLong;
@@ -72,7 +74,15 @@ class JdbcDataRepositoryIntegrationTest
     }
   }
 
-  private static ObjectNode objectNode(
+  private static ObjectNode key(int id)
+  {
+    ObjectNode key = new ObjectNode(null);
+    key.set("id", IntNode.valueOf(id));
+
+    return key;
+  }
+
+  private static ObjectNode object(
     int id,
     Boolean booleanValue,
     int integerValue,
@@ -83,7 +93,7 @@ class JdbcDataRepositoryIntegrationTest
     String stringValue
   )
   {
-    return objectNode(
+    return object(
       id,
       booleanValue,
       integerValue,
@@ -96,7 +106,7 @@ class JdbcDataRepositoryIntegrationTest
     );
   }
 
-  private static ObjectNode objectNode(
+  private static ObjectNode object(
     Integer id,
     Boolean booleanValue,
     int integerValue,
@@ -157,9 +167,9 @@ class JdbcDataRepositoryIntegrationTest
     @Test
     void shouldFind()
     {
-      ObjectNode object1 = dataRepository.insert(objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
-      ObjectNode object2 = dataRepository.insert(objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
-      ObjectNode object3 = dataRepository.insert(objectNode(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
+      ObjectNode object1 = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode object2 = dataRepository.insert(object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
+      ObjectNode object3 = dataRepository.insert(object(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
 
       assertEquals(object1, dataRepository.find(object1).orElse(null));
       assertEquals(object2, dataRepository.find(object2).orElse(null));
@@ -178,11 +188,41 @@ class JdbcDataRepositoryIntegrationTest
     @Test
     void shouldFindAll()
     {
-      ObjectNode object1 = dataRepository.insert(objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
-      ObjectNode object2 = dataRepository.insert(objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
-      ObjectNode object3 = dataRepository.insert(objectNode(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
+      ObjectNode object1 = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode object2 = dataRepository.insert(object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
+      ObjectNode object3 = dataRepository.insert(object(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
 
       assertEquals(List.of(object1, object2, object3), dataRepository.findAll());
+    }
+
+    @Test
+    void shouldFindAllWithKeys()
+    {
+      ObjectNode key1 = key(1);
+      ObjectNode object1 = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode key2 = key(2);
+      ObjectNode object2 = dataRepository.insert(object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
+      ObjectNode key3 = key(3);
+      ObjectNode object3 = dataRepository.insert(object(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
+
+      assertEquals(
+        Map.of(key1, object1, key2, object2),
+        dataRepository.findAll(List.of(key1, key2))
+      );
+      assertEquals(
+        Map.of(key3, object3),
+        dataRepository.findAll(List.of(key3))
+      );
+    }
+
+    @Test
+    void shouldNotFindAll()
+    {
+      fail("Implement this");
+      ObjectNode key = new ObjectNode(null);
+      key.set("id", IntNode.valueOf(1));
+
+      assertTrue(dataRepository.find(key).isEmpty());
     }
 
     @ParameterizedTest
@@ -205,9 +245,9 @@ class JdbcDataRepositoryIntegrationTest
     {
       LocalDateTime now = LocalDateTime.now();
 
-      ObjectNode object1 = objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
-      ObjectNode object2 = objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
-      ObjectNode object3 = objectNode(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
+      ObjectNode object1 = object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
+      ObjectNode object2 = object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
+      ObjectNode object3 = object(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
 
       List<ObjectNode> objects = List.of(object1, object2, object3);
 
@@ -256,9 +296,9 @@ class JdbcDataRepositoryIntegrationTest
     {
       LocalDateTime now = LocalDateTime.now();
 
-      ObjectNode object1 = objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
-      ObjectNode object2 = objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
-      ObjectNode object3 = objectNode(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
+      ObjectNode object1 = object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
+      ObjectNode object2 = object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
+      ObjectNode object3 = object(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
 
       assertEquals(object1, dataRepository.insert(object1));
       assertEquals(object2, dataRepository.insert(object2));
@@ -272,9 +312,9 @@ class JdbcDataRepositoryIntegrationTest
       LocalDateTime now = LocalDateTime.now();
 
       List<ObjectNode> objects = List.of(
-        objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1)),
-        objectNode(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now),
-        objectNode(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1))
+        object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1)),
+        object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now),
+        object(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1))
       );
 
       DataRepository dataRepository = ((JdbcDataRepository)JdbcDataRepositoryIntegrationTest.this.dataRepository).withBatchSize(2);
@@ -317,9 +357,9 @@ class JdbcDataRepositoryIntegrationTest
     {
       LocalDateTime now = LocalDateTime.now();
 
-      ObjectNode object1 = objectNode(null, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
-      ObjectNode object2 = objectNode(null, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
-      ObjectNode object3 = objectNode(null, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
+      ObjectNode object1 = object(null, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
+      ObjectNode object2 = object(null, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
+      ObjectNode object3 = object(null, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
 
       ObjectNode persistedObject1 = dataRepository.insert(object1);
       assertEquals(object1.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject1);
@@ -338,9 +378,9 @@ class JdbcDataRepositoryIntegrationTest
     {
       LocalDateTime now = LocalDateTime.now();
 
-      ObjectNode object1 = objectNode(null, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
-      ObjectNode object2 = objectNode(null, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
-      ObjectNode object3 = objectNode(null, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
+      ObjectNode object1 = object(null, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1));
+      ObjectNode object2 = object(null, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now);
+      ObjectNode object3 = object(null, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
 
       DataRepository dataRepository = ((JdbcDataRepository)JdbcDataRepositoryIntegrationTest.this.dataRepository).withBatchSize(2);
 
@@ -384,7 +424,7 @@ class JdbcDataRepositoryIntegrationTest
     @Test
     void shouldUpdate()
     {
-      ObjectNode object = dataRepository.insert(objectNode(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode object = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
 
       ObjectNode mutation = new ObjectNode(null);
       mutation.set("id", object.get("id"));

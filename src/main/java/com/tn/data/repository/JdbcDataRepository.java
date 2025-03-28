@@ -2,9 +2,11 @@ package com.tn.data.repository;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toMap;
 
 import static com.google.common.collect.Lists.partition;
 
+import static com.tn.lang.util.function.Lambdas.unwrapException;
 import static com.tn.lang.util.function.Lambdas.wrapConsumer;
 
 import java.sql.PreparedStatement;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.sql.DataSource;
@@ -44,6 +47,8 @@ public class JdbcDataRepository implements DataRepository
   private static final int DEFAULT_BATCH_SIZE = 50;
   private static final String FIELD_PLACEHOLDER = "%s = ?";
   private static final String LOGICAL_AND = " AND ";
+  private static final String LOGICAL_OR = " OR ";
+  private static final String PARENTHESIS = "(%s)";
   private static final String SELECT = "SELECT %s FROM %s.%s";
   private static final String INSERT = "INSERT INTO %s.%s(%s) VALUES (%s)";
   private static final String UPDATE = "UPDATE %s.%s SET %s WHERE %s";
@@ -59,6 +64,7 @@ public class JdbcDataRepository implements DataRepository
   private final String insert;
   private final String schema;
   private final String table;
+  private final String keyPredicate;
 
   private int batchSize = DEFAULT_BATCH_SIZE;
 
@@ -80,6 +86,8 @@ public class JdbcDataRepository implements DataRepository
     this.keyFields = fields.stream().filter(field -> field.column().key()).toList();
     this.mutableFields = fields.stream().filter(field -> !field.column().key()).toList();
 
+    this.keyPredicate = keyFields.stream().map(field -> FIELD_PLACEHOLDER.formatted(field.column().name())).collect(joining(LOGICAL_AND));
+
     this.select = select(schema, table, fields);
     this.insert = insert(schema, table, fields);
   }
@@ -95,14 +103,10 @@ public class JdbcDataRepository implements DataRepository
   {
     try
     {
-      //noinspection SqlSourceToSinkFlow
       return jdbcTemplate.query(
-        WHERE.formatted(
-          select,
-          keyFields.stream().map(field -> FIELD_PLACEHOLDER.formatted(field.column().name())).collect(joining(LOGICAL_AND))
-        ),
+        WHERE.formatted(select, keyPredicate),
         preparedStatement -> setValues(preparedStatement, parameterIndex(), key, keyFields),
-        this::toObject
+        this::object
       ).stream().findFirst();
     }
     catch (DataAccessException e)
@@ -116,11 +120,36 @@ public class JdbcDataRepository implements DataRepository
   {
     try
     {
-      return jdbcTemplate.query(select, this::toObject);
+      return jdbcTemplate.query(select, this::object);
     }
     catch (DataAccessException e)
     {
       throw new FindException(e.getCause());
+    }
+  }
+
+  @Override
+  public Map<ObjectNode, ObjectNode> findAll(Collection<ObjectNode> keys) throws FindException
+  {
+    try
+    {
+      AtomicInteger parameterIndex = parameterIndex();
+      //noinspection SqlSourceToSinkFlow
+      return jdbcTemplate.query(
+        WHERE.formatted(select, keys.stream().map(key -> format(PARENTHESIS, keyPredicate)).collect(joining(LOGICAL_OR))),
+        preparedStatement -> keys.forEach(wrapConsumer(key -> setValues(preparedStatement, parameterIndex, key, keyFields))),
+        this::object
+      ).stream().collect(toMap(this::key, Function.identity()));
+    }
+    catch (DataAccessException e)
+    {
+      throw new FindException(e.getCause());
+    }
+    catch (WrappedException e)
+    {
+      Throwable unwrapped = unwrapException(e);
+      if (unwrapped instanceof RuntimeException) throw (RuntimeException)unwrapped;
+      else throw new FindException(unwrapped);
     }
   }
 
@@ -135,7 +164,7 @@ public class JdbcDataRepository implements DataRepository
       return jdbcTemplate.query(
         WHERE.formatted(select, predicate.toSql()),
         predicate::setValues,
-        this::toObject
+        this::object
       );
     }
     catch (DataAccessException e)
@@ -275,7 +304,15 @@ public class JdbcDataRepository implements DataRepository
     return objectWithIdentifier;
   }
 
-  private ObjectNode toObject(ResultSet resultSet, int i)
+  private ObjectNode key(ObjectNode object)
+  {
+    ObjectNode key = new ObjectNode(null);
+    keyFields.forEach(field -> key.set(field.name(), object.get(field.name())));
+
+    return key;
+  }
+
+  private ObjectNode object(ResultSet resultSet, int i)
   {
     ObjectNode object = new ObjectNode(null);
     keyFields.forEach(field -> setField(object, field.name(), get(field, resultSet)));
