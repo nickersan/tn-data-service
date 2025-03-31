@@ -1,7 +1,7 @@
 package com.tn.data.repository;
 
 import java.util.Collection;
-import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -12,13 +12,30 @@ public interface DataRepository
 
   Collection<ObjectNode> findAll() throws FindException;
 
-  Map<ObjectNode, ObjectNode> findAll(Collection<ObjectNode> keys) throws FindException;
+  default Collection<ObjectNode> findAll(ObjectNode... keys) throws FindException
+  {
+    return findAll(List.of(keys));
+  }
+
+  Collection<ObjectNode> findAll(Iterable<ObjectNode> keys) throws FindException;
 
   Collection<ObjectNode> findFor(String query) throws FindException;
 
   ObjectNode insert(ObjectNode object) throws InsertException;
 
-  Collection<ObjectNode> insert(Collection<ObjectNode> objects) throws InsertException;
+  default Collection<ObjectNode> insertAll(ObjectNode... objects) throws InsertException
+  {
+    return insertAll(List.of(objects));
+  }
+
+  Collection<ObjectNode> insertAll(Iterable<ObjectNode> objects) throws InsertException;
 
   ObjectNode update(ObjectNode object) throws UpdateException;
+
+  default Collection<ObjectNode> updateAll(ObjectNode... objects) throws UpdateException
+  {
+    return updateAll(List.of(objects));
+  }
+
+  Collection<ObjectNode> updateAll(Iterable<ObjectNode> objects) throws UpdateException;
 }

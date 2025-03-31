@@ -24,13 +24,9 @@ import java.util.stream.StreamSupport;
 import javax.sql.DataSource;
 
 import com.fasterxml.jackson.databind.node.BooleanNode;
-import com.fasterxml.jackson.databind.node.DecimalNode;
-import com.fasterxml.jackson.databind.node.DoubleNode;
-import com.fasterxml.jackson.databind.node.FloatNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.LongNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -42,6 +38,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.jdbc.Sql;
 
+import com.tn.data.domain.Field;
+import com.tn.data.util.Fields;
 import com.tn.lang.util.function.WrappedException;
 
 @SpringBootTest(
@@ -55,6 +53,18 @@ import com.tn.lang.util.function.WrappedException;
 @SuppressWarnings({"SqlNoDataSourceInspection", "SqlResolve", "SqlDeprecateType", "SpringBootApplicationProperties"})
 class JdbcDataRepositoryIntegrationTest
 {
+  private static final String FIELD_ID = "id";
+  private static final Field BOOLEAN_VALUE = new Field("booleanValue", boolean.class, null);
+  private static final Field INTEGER_VALUE = new Field("integerValue", int.class, null);
+  private static final Field LONG_VALUE = new Field("longValue", long.class, null);
+  private static final Field FLOAT_VALUE = new Field("floatValue", float.class, null);
+  private static final Field DOUBLE_VALUE = new Field("doubleValue", double.class, null);
+  private static final Field DECIMAL_VALUE = new Field("decimalValue", BigDecimal.class, null);
+  private static final Field STRING_VALUE = new Field("stringValue", String.class, null);
+  private static final Field DATE_VALUE = new Field("dateValue", Date.class, null);
+  private static final Field TIME_VALUE = new Field("timeValue", Time.class, null);
+  private static final Field TIMESTAMP_VALUE = new Field("timestampValue", Timestamp.class, null);
+
   @Autowired
   DataSource dataSource;
   @Autowired
@@ -76,7 +86,7 @@ class JdbcDataRepositoryIntegrationTest
   private static ObjectNode key(int id)
   {
     ObjectNode key = new ObjectNode(null);
-    key.set("id", IntNode.valueOf(id));
+    key.set(FIELD_ID, IntNode.valueOf(id));
 
     return key;
   }
@@ -122,17 +132,17 @@ class JdbcDataRepositoryIntegrationTest
     Timestamp timestampValue = Timestamp.valueOf(localDateTime.withNano(0));
 
     ObjectNode objectNode = new ObjectNode(null);
-    if (id != null) objectNode.set("id", IntNode.valueOf(id));
-    if (booleanValue != null) objectNode.set("booleanValue", BooleanNode.valueOf(booleanValue));
-    objectNode.set("integerValue", IntNode.valueOf(integerValue));
-    objectNode.set("longValue", LongNode.valueOf(longValue));
-    objectNode.set("floatValue", FloatNode.valueOf(floatValue));
-    objectNode.set("doubleValue", DoubleNode.valueOf(doubleValue));
-    objectNode.set("decimalValue", DecimalNode.valueOf(decimalValue));
-    objectNode.set("stringValue", TextNode.valueOf(stringValue));
-    objectNode.set("dateValue", TextNode.valueOf(dateValue.toString()));
-    objectNode.set("timeValue", TextNode.valueOf(timeValue.toString()));
-    objectNode.set("timestampValue", TextNode.valueOf(timestampValue.toString()));
+    if (id != null) objectNode.set(FIELD_ID, IntNode.valueOf(id));
+    if (booleanValue != null) Fields.with(objectNode, BOOLEAN_VALUE, booleanValue);
+    Fields.with(objectNode, INTEGER_VALUE, integerValue);
+    Fields.with(objectNode, LONG_VALUE, longValue);
+    Fields.with(objectNode, FLOAT_VALUE, floatValue);
+    Fields.with(objectNode, DOUBLE_VALUE, doubleValue);
+    Fields.with(objectNode, DECIMAL_VALUE, decimalValue);
+    Fields.with(objectNode, STRING_VALUE, stringValue);
+    Fields.with(objectNode, DATE_VALUE, dateValue);
+    Fields.with(objectNode, TIME_VALUE, timeValue);
+    Fields.with(objectNode, TIMESTAMP_VALUE, timestampValue);
 
     return objectNode;
   }
@@ -179,7 +189,7 @@ class JdbcDataRepositoryIntegrationTest
     void shouldNotFind()
     {
       ObjectNode key = new ObjectNode(null);
-      key.set("id", IntNode.valueOf(1));
+      key.set(FIELD_ID, IntNode.valueOf(1));
 
       assertTrue(dataRepository.find(key).isEmpty());
     }
@@ -205,12 +215,12 @@ class JdbcDataRepositoryIntegrationTest
       ObjectNode object3 = dataRepository.insert(object(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
 
       assertEquals(
-        Map.of(key1, object1, key2, object2),
-        dataRepository.findAll(List.of(key1, key2))
+        List.of(object1, object2),
+        dataRepository.findAll(key1, key2)
       );
       assertEquals(
-        Map.of(key3, object3),
-        dataRepository.findAll(List.of(key3))
+        List.of(object3),
+        dataRepository.findAll(key3)
       );
     }
 
@@ -218,9 +228,9 @@ class JdbcDataRepositoryIntegrationTest
     void shouldNotFindAllWithKeys()
     {
       ObjectNode key = new ObjectNode(null);
-      key.set("id", IntNode.valueOf(1));
+      key.set(FIELD_ID, IntNode.valueOf(1));
 
-      assertTrue(dataRepository.findAll(List.of(key)).isEmpty());
+      assertTrue(dataRepository.findAll(key).isEmpty());
     }
 
     @ParameterizedTest
@@ -229,7 +239,7 @@ class JdbcDataRepositoryIntegrationTest
     {
       try
       {
-        dataRepository.insert(objectNodes);
+        dataRepository.insertAll(objectNodes);
 
         assertEquals(List.of(objectNode), dataRepository.findFor(query));
       }
@@ -317,7 +327,7 @@ class JdbcDataRepositoryIntegrationTest
 
       DataRepository dataRepository = ((JdbcDataRepository)JdbcDataRepositoryIntegrationTest.this.dataRepository).withBatchSize(2);
 
-      assertEquals(objects, dataRepository.insert(objects));
+      assertEquals(objects, dataRepository.insertAll(objects));
       assertEquals(objects, dataRepository.findAll());
     }
   }
@@ -360,13 +370,13 @@ class JdbcDataRepositoryIntegrationTest
       ObjectNode object3 = object(null, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1));
 
       ObjectNode persistedObject1 = dataRepository.insert(object1);
-      assertEquals(object1.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject1);
+      assertEquals(object1.set(FIELD_ID, LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject1);
 
       ObjectNode persistedObject2 = dataRepository.insert(object2);
-      assertEquals(object2.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject2);
+      assertEquals(object2.set(FIELD_ID, LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject2);
 
       ObjectNode persistedObject3 = dataRepository.insert(object3);
-      assertEquals(object3.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject3);
+      assertEquals(object3.set(FIELD_ID, LongNode.valueOf(EXPECTED_ID.getAndIncrement())), persistedObject3);
 
       assertEquals(List.of(persistedObject1, persistedObject2, persistedObject3), dataRepository.findAll());
     }
@@ -383,12 +393,12 @@ class JdbcDataRepositoryIntegrationTest
       DataRepository dataRepository = ((JdbcDataRepository)JdbcDataRepositoryIntegrationTest.this.dataRepository).withBatchSize(2);
 
       List<ObjectNode> expectedObjects = List.of(
-        object1.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())),
-        object2.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement())),
-        object3.set("id", LongNode.valueOf(EXPECTED_ID.getAndIncrement()))
+        object1.set(FIELD_ID, LongNode.valueOf(EXPECTED_ID.getAndIncrement())),
+        object2.set(FIELD_ID, LongNode.valueOf(EXPECTED_ID.getAndIncrement())),
+        object3.set(FIELD_ID, LongNode.valueOf(EXPECTED_ID.getAndIncrement()))
       );
 
-      assertEquals(expectedObjects, dataRepository.insert(List.of(object1, object2, object3)));
+      assertEquals(expectedObjects, dataRepository.insertAll(List.of(object1, object2, object3)));
       assertEquals(expectedObjects, dataRepository.findAll());
     }
   }
@@ -419,21 +429,103 @@ class JdbcDataRepositoryIntegrationTest
   )
   class Update
   {
-    @Test
-    void shouldUpdate()
+    @ParameterizedTest
+    @MethodSource("updates")
+    void shouldUpdate(ObjectNode object, ObjectNode mutation)
     {
-      ObjectNode object = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
-
-      ObjectNode mutation = new ObjectNode(null);
-      mutation.set("id", object.get("id"));
-      mutation.set("booleanValue", BooleanNode.valueOf(false));
+      ObjectNode persisted = dataRepository.insert(object);
 
       ObjectNode mutated = new ObjectNode(null);
-      mutated.setAll(object);
+      mutated.setAll(persisted);
       mutated.setAll(mutation);
 
       assertEquals(mutated, dataRepository.update(mutation));
       assertEquals(mutated, dataRepository.find(mutation).orElse(null));
+    }
+
+    static Stream<Arguments> updates()
+    {
+      LocalDateTime now = LocalDateTime.now();
+      ObjectNode object = object(1, true, 10, 11L, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now);
+
+      return Stream.of(
+        Arguments.of(object, mutation(object, Map.of(BOOLEAN_VALUE, false))),
+        Arguments.of(object, mutation(object, Map.of(INTEGER_VALUE, 11))),
+        Arguments.of(object, mutation(object, Map.of(LONG_VALUE, 12L))),
+        Arguments.of(object, mutation(object, Map.of(FLOAT_VALUE, 2.34F))),
+        Arguments.of(object, mutation(object, Map.of(DOUBLE_VALUE, 3.45))),
+        Arguments.of(object, mutation(object, Map.of(DECIMAL_VALUE, BigDecimal.valueOf(4.56)))),
+        Arguments.of(object, mutation(object, Map.of(STRING_VALUE, "U2"))),
+        Arguments.of(object, mutation(object, Map.of(DATE_VALUE, Date.valueOf(now.plusDays(1).toLocalDate())))),
+        Arguments.of(object, mutation(object, Map.of(TIME_VALUE, Time.valueOf(now.plusMinutes(1).toLocalTime())))),
+        Arguments.of(object, mutation(object, Map.of(TIMESTAMP_VALUE, Timestamp.valueOf(now.plusSeconds(1).withNano(0))))),
+        Arguments.of(
+          object,
+          mutation(
+            object,
+            Map.of(
+              BOOLEAN_VALUE, false,
+              INTEGER_VALUE, 11,
+              LONG_VALUE, 12L,
+              FLOAT_VALUE, 2.34F,
+              DOUBLE_VALUE, 3.45,
+              DECIMAL_VALUE, BigDecimal.valueOf(4.56),
+              STRING_VALUE, "U2",
+              DATE_VALUE, Date.valueOf(now.plusDays(1).toLocalDate()),
+              TIME_VALUE, Time.valueOf(now.plusMinutes(1).toLocalTime()),
+              TIMESTAMP_VALUE, Timestamp.valueOf(now.plusSeconds(1).withNano(0))
+            )
+          )
+        )
+      );
+    }
+
+    @Test
+    void shouldUpdateAll()
+    {
+      LocalDateTime now = LocalDateTime.now();
+
+      ObjectNode object1 = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1", now.minusDays(1).minusMinutes(1)));
+      ObjectNode object2 = dataRepository.insert(object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2", now));
+      ObjectNode object3 = dataRepository.insert(object(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3", now.plusDays(1).plusMinutes(1)));
+
+      DataRepository dataRepository = ((JdbcDataRepository)JdbcDataRepositoryIntegrationTest.this.dataRepository).withBatchSize(2);
+
+      ObjectNode mutation1 = new ObjectNode(null);
+      mutation1.set(FIELD_ID, object1.get(FIELD_ID));
+      mutation1.set("booleanValue", BooleanNode.valueOf(false));
+
+      ObjectNode mutation2 = new ObjectNode(null);
+      mutation2.set(FIELD_ID, object2.get(FIELD_ID));
+      mutation2.set("booleanValue", BooleanNode.valueOf(true));
+
+      ObjectNode mutation3 = new ObjectNode(null);
+      mutation3.set(FIELD_ID, object3.get(FIELD_ID));
+      mutation3.set("booleanValue", BooleanNode.valueOf(false));
+
+      ObjectNode mutated1 = new ObjectNode(null);
+      mutated1.setAll(object1);
+      mutated1.setAll(mutation1);
+
+      ObjectNode mutated2 = new ObjectNode(null);
+      mutated2.setAll(object2);
+      mutated2.setAll(mutation2);
+
+      ObjectNode mutated3 = new ObjectNode(null);
+      mutated3.setAll(object3);
+      mutated3.setAll(mutation3);
+
+      assertEquals(List.of(mutated1, mutated2, mutated3), dataRepository.updateAll(mutation1, mutation2, mutation3));
+      assertEquals(List.of(mutated1, mutated2, mutated3), dataRepository.findAll(mutation1, mutation2, mutation3));
+    }
+
+    private static Object mutation(ObjectNode object, Map<Field, Object> values)
+    {
+      ObjectNode mutation = new ObjectNode(null);
+      mutation.set(FIELD_ID, object.get(FIELD_ID));
+      values.forEach((field, value) -> Fields.with(mutation, field, value));
+
+      return mutation;
     }
   }
 }
