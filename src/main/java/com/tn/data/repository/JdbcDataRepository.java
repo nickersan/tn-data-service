@@ -1,40 +1,7 @@
 package com.tn.data.repository;
 
-import static java.lang.String.format;
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.StreamSupport.stream;
-
-import static com.google.common.collect.Lists.partition;
-
-import static com.tn.lang.Iterables.isEmpty;
-import static com.tn.lang.Iterables.toList;
-import static com.tn.lang.util.function.Lambdas.unwrapException;
-import static com.tn.lang.util.function.Lambdas.wrapConsumer;
-
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
-import javax.annotation.Nonnull;
-import javax.sql.DataSource;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.dao.DataAccessException;
-import org.springframework.jdbc.core.BatchPreparedStatementSetter;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.tn.data.domain.Field;
 import com.tn.data.util.Fields;
 import com.tn.lang.sql.PreparedStatements;
@@ -42,6 +9,32 @@ import com.tn.lang.util.function.ConsumerWithThrows;
 import com.tn.lang.util.function.WrappedException;
 import com.tn.query.QueryParser;
 import com.tn.query.jdbc.JdbcPredicate;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.annotation.Nonnull;
+import javax.sql.DataSource;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
+
+import static com.google.common.collect.Lists.partition;
+import static com.tn.lang.Iterables.*;
+import static com.tn.lang.Strings.repeat;
+import static com.tn.lang.util.function.Lambdas.unwrapException;
+import static com.tn.lang.util.function.Lambdas.wrapConsumer;
+import static java.lang.String.format;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.StreamSupport.stream;
 
 public class JdbcDataRepository implements DataRepository
 {
@@ -56,6 +49,7 @@ public class JdbcDataRepository implements DataRepository
   private static final String INSERT = "INSERT INTO %s.%s(%s) VALUES (%s)";
   private static final String UPDATE = "UPDATE %s.%s SET %s WHERE %s";
   private static final String WHERE = "%s WHERE %s";
+  private static final String ORDER_BY = "%s ORDER BY %s";
 
   private final JdbcTemplate jdbcTemplate;
   private final Collection<Field> fields;
@@ -89,7 +83,7 @@ public class JdbcDataRepository implements DataRepository
     this.keyFields = fields.stream().filter(field -> field.column().key()).toList();
     this.mutableFields = fields.stream().filter(field -> !field.column().key()).toList();
 
-    this.keyPredicate = keyFields.stream().map(field -> FIELD_PLACEHOLDER.formatted(field.column().name())).collect(joining(LOGICAL_AND));
+    this.keyPredicate = keyFields.stream().map(field -> format(FIELD_PLACEHOLDER, field.column().name())).collect(joining(LOGICAL_AND));
 
     this.selectSql = selectSql(schema, table, fields);
     this.insertSql = insertSql(schema, table, fields);
@@ -123,7 +117,7 @@ public class JdbcDataRepository implements DataRepository
   {
     try
     {
-      return jdbcTemplate.query(selectSql, this::object);
+      return jdbcTemplate.query(orderByKeyFields(selectSql), this::object);
     }
     catch (DataAccessException e)
     {
@@ -141,7 +135,7 @@ public class JdbcDataRepository implements DataRepository
       AtomicInteger parameterIndex = parameterIndex();
       //noinspection SqlSourceToSinkFlow
       return jdbcTemplate.query(
-        WHERE.formatted(selectSql, stream(keys.spliterator(), false).map(key -> format(PARENTHESIS, keyPredicate)).collect(joining(LOGICAL_OR))),
+        orderByKeyFields(WHERE.formatted(selectSql, repeat(format(PARENTHESIS, keyPredicate), LOGICAL_OR, size(keys)))),
         preparedStatement -> keys.forEach(wrapConsumer(key -> setValues(preparedStatement, parameterIndex, key, keyFields))),
         this::object
       );
@@ -167,7 +161,7 @@ public class JdbcDataRepository implements DataRepository
 
       //noinspection SqlSourceToSinkFlow
       return jdbcTemplate.query(
-        WHERE.formatted(selectSql, predicate.toSql()),
+        orderByKeyFields(WHERE.formatted(selectSql, predicate.toSql())),
         predicate::setValues,
         this::object
       );
@@ -423,8 +417,13 @@ public class JdbcDataRepository implements DataRepository
       schema,
       table,
       updatableFields.stream().map(field -> format(FIELD_PLACEHOLDER, field.column().name())).collect(joining(COLUMN_SEPARATOR)),
-      keyFields.stream().map(field -> format(FIELD_PLACEHOLDER, field.column().name())).collect(joining(LOGICAL_AND))
+      keyPredicate
     );
+  }
+
+  private String orderByKeyFields(String sql)
+  {
+    return format(ORDER_BY, sql, keyFields.stream().map(field -> field.column().name()).collect(joining(COLUMN_SEPARATOR)));
   }
 
   private AtomicInteger parameterIndex()
