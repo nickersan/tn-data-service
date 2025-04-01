@@ -117,6 +117,7 @@ public class JdbcDataRepository implements DataRepository
   {
     try
     {
+      //noinspection SqlSourceToSinkFlow
       return jdbcTemplate.query(orderByKeyFields(selectSql), this::object);
     }
     catch (DataAccessException e)
