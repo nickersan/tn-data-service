@@ -38,4 +38,13 @@ public interface DataRepository
   }
 
   Collection<ObjectNode> updateAll(Iterable<ObjectNode> objects) throws UpdateException;
+
+  void delete(ObjectNode key) throws DeleteException;
+
+  default void deleteAll(ObjectNode... keys) throws DeleteException
+  {
+    deleteAll(List.of(keys));
+  }
+
+  void deleteAll(Iterable<ObjectNode> keys) throws DeleteException;
 }

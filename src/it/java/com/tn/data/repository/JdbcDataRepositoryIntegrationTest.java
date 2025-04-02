@@ -528,4 +528,61 @@ class JdbcDataRepositoryIntegrationTest
       return mutation;
     }
   }
+
+  @Nested
+  @DirtiesContext
+  @Sql(
+    executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS,
+    statements = """
+      CREATE TABLE PUBLIC.TEST (
+        id              INT              NOT NULL PRIMARY KEY,
+        boolean_value   BOOLEAN          NULL,
+        integer_value   INTEGER          NOT NULL,
+        long_value      LONG             NOT NULL,
+        float_value     FLOAT            NOT NULL,
+        double_value    DOUBLE PRECISION NOT NULL,
+        decimal_value   DECIMAL(3, 2)    NOT NULL,
+        string_value    VARCHAR(10)      NOT NULL,
+        date_value      DATE             NOT NULL,
+        time_value      TIME             NOT NULL,
+        timestamp_value TIMESTAMP        NOT NULL
+      );
+    """
+  )
+  @Sql(
+    executionPhase = Sql.ExecutionPhase.AFTER_TEST_CLASS,
+    statements = "DROP TABLE PUBLIC.TEST"
+  )
+  class Delete
+  {
+    @Test
+    void shouldDelete()
+    {
+      ObjectNode object1 = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode object2 = dataRepository.insert(object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
+      ObjectNode object3 = dataRepository.insert(object(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
+
+      assertEquals(List.of(object1, object2, object3), dataRepository.findAll());
+      dataRepository.delete(object2);
+      assertEquals(List.of(object1, object3), dataRepository.findAll());
+      dataRepository.delete(object1);
+      assertEquals(List.of(object3), dataRepository.findAll());
+      dataRepository.delete(object3);
+      assertTrue(dataRepository.findAll().isEmpty());
+    }
+
+    @Test
+    void shouldDeleteAll()
+    {
+      ObjectNode object1 = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode object2 = dataRepository.insert(object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
+      ObjectNode object3 = dataRepository.insert(object(3, null, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
+
+      assertEquals(List.of(object1, object2, object3), dataRepository.findAll());
+      dataRepository.deleteAll(object1, object2);
+      assertEquals(List.of(object3), dataRepository.findAll());
+      dataRepository.deleteAll(object3);
+      assertTrue(dataRepository.findAll().isEmpty());
+    }
+  }
 }

@@ -1,14 +1,35 @@
 package com.tn.data.repository;
 
+import static java.lang.String.format;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.StreamSupport.stream;
+
+import static com.google.common.collect.Lists.partition;
+
+import static com.tn.lang.Iterables.isEmpty;
+import static com.tn.lang.Iterables.size;
+import static com.tn.lang.Iterables.toList;
+import static com.tn.lang.Strings.repeat;
+import static com.tn.lang.util.function.Lambdas.unwrapException;
+import static com.tn.lang.util.function.Lambdas.wrapConsumer;
+
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
+import javax.annotation.Nonnull;
+import javax.sql.DataSource;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.tn.data.domain.Field;
-import com.tn.data.util.Fields;
-import com.tn.lang.sql.PreparedStatements;
-import com.tn.lang.util.function.ConsumerWithThrows;
-import com.tn.lang.util.function.WrappedException;
-import com.tn.query.QueryParser;
-import com.tn.query.jdbc.JdbcPredicate;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,25 +37,13 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.Nonnull;
-import javax.sql.DataSource;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
-
-import static com.google.common.collect.Lists.partition;
-import static com.tn.lang.Iterables.*;
-import static com.tn.lang.Strings.repeat;
-import static com.tn.lang.util.function.Lambdas.unwrapException;
-import static com.tn.lang.util.function.Lambdas.wrapConsumer;
-import static java.lang.String.format;
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.StreamSupport.stream;
+import com.tn.data.domain.Field;
+import com.tn.data.util.Fields;
+import com.tn.lang.sql.PreparedStatements;
+import com.tn.lang.util.function.ConsumerWithThrows;
+import com.tn.lang.util.function.WrappedException;
+import com.tn.query.QueryParser;
+import com.tn.query.jdbc.JdbcPredicate;
 
 public class JdbcDataRepository implements DataRepository
 {
@@ -48,6 +57,7 @@ public class JdbcDataRepository implements DataRepository
   private static final String SELECT = "SELECT %s FROM %s.%s";
   private static final String INSERT = "INSERT INTO %s.%s(%s) VALUES (%s)";
   private static final String UPDATE = "UPDATE %s.%s SET %s WHERE %s";
+  private static final String DELETE = "DELETE FROM %s.%s";
   private static final String WHERE = "%s WHERE %s";
   private static final String ORDER_BY = "%s ORDER BY %s";
 
@@ -59,6 +69,7 @@ public class JdbcDataRepository implements DataRepository
   private final QueryParser<JdbcPredicate> queryParser;
   private final String selectSql;
   private final String insertSql;
+  private final String deleteSql;
   private final String schema;
   private final String table;
   private final String keyPredicate;
@@ -87,6 +98,7 @@ public class JdbcDataRepository implements DataRepository
 
     this.selectSql = selectSql(schema, table, fields);
     this.insertSql = insertSql(schema, table, fields);
+    this.deleteSql = deleteSql(schema, table);
   }
 
   public JdbcDataRepository withBatchSize(int batchSize)
@@ -292,6 +304,47 @@ public class JdbcDataRepository implements DataRepository
     return findAll(objects);
   }
 
+  @Override
+  public void delete(ObjectNode key) throws DeleteException
+  {
+    try
+    {
+      jdbcTemplate.update(
+        WHERE.formatted(deleteSql, keyPredicate),
+        preparedStatement -> setValues(preparedStatement, parameterIndex(), key, keyFields)
+      );
+    }
+    catch (DataAccessException e)
+    {
+      throw new DeleteException(e.getCause());
+    }
+  }
+
+  @Override
+  public void deleteAll(Iterable<ObjectNode> keys) throws DeleteException
+  {
+    if (isEmpty(keys)) return;
+
+    try
+    {
+      AtomicInteger parameterIndex = parameterIndex();
+      jdbcTemplate.update(
+        WHERE.formatted(deleteSql, repeat(format(PARENTHESIS, keyPredicate), LOGICAL_OR, size(keys))),
+        preparedStatement -> keys.forEach(wrapConsumer(key -> setValues(preparedStatement, parameterIndex, key, keyFields)))
+      );
+    }
+    catch (DataAccessException e)
+    {
+      throw new DeleteException(e.getCause());
+    }
+    catch (WrappedException e)
+    {
+      Throwable unwrapped = unwrapException(e);
+      if (unwrapped instanceof RuntimeException) throw (RuntimeException)unwrapped;
+      else throw new FindException(unwrapped);
+    }
+  }
+
   @SafeVarargs
   private BatchPreparedStatementSetter batchPreparedStatementSetter(List<ObjectNode> objects, Collection<Field>... fieldGroups)
   {
@@ -419,6 +472,15 @@ public class JdbcDataRepository implements DataRepository
       table,
       updatableFields.stream().map(field -> format(FIELD_PLACEHOLDER, field.column().name())).collect(joining(COLUMN_SEPARATOR)),
       keyPredicate
+    );
+  }
+
+  private String deleteSql(String schema, String table)
+  {
+    return format(
+      DELETE,
+      schema,
+      table
     );
   }
 
