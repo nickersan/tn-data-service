@@ -6,11 +6,15 @@ import java.util.Optional;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import com.tn.lang.util.Page;
+
 public interface DataRepository
 {
   Optional<ObjectNode> find(ObjectNode key) throws FindException;
 
   Collection<ObjectNode> findAll() throws FindException;
+
+  Page<ObjectNode> findAll(int pageNumber, int pageSize) throws FindException;
 
   default Collection<ObjectNode> findAll(ObjectNode... keys) throws FindException
   {
@@ -20,6 +24,8 @@ public interface DataRepository
   Collection<ObjectNode> findAll(Iterable<ObjectNode> keys) throws FindException;
 
   Collection<ObjectNode> findFor(String query) throws FindException;
+
+  Page<ObjectNode> findFor(String query, int pageNumber, int pageSize) throws FindException;
 
   ObjectNode insert(ObjectNode object) throws InsertException;
 

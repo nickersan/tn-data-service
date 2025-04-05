@@ -3,12 +3,14 @@ package com.tn.data.config;
 import static java.util.stream.Collectors.toMap;
 
 import java.util.Collection;
+import java.util.concurrent.Executors;
 import javax.sql.DataSource;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.tn.data.domain.Field;
 import com.tn.data.repository.DataRepository;
@@ -26,18 +28,21 @@ class RepositoryConfiguration
   @Lazy
   DataRepository dataRepository(
     FieldRepository fieldRepository,
-    DataSource dataSource,
+    JdbcTemplate jdbcTemplate,
     @Value("${tn.data.schema}")
     String schema,
     @Value("${tn.data.table}")
-    String table
+    String table,
+    @Value("${tn.data.parallelism:10}")
+    int parallelism
   )
   {
     Collection<Field> fields = fieldRepository.findForTable(schema, table);
     if (fields.isEmpty()) throw new IllegalStateException("No such table: " + schema + "." + table);
 
     return new JdbcDataRepository(
-      dataSource,
+      Executors.newWorkStealingPool(parallelism),
+      jdbcTemplate,
       schema,
       table,
       fields,

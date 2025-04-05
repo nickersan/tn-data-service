@@ -40,6 +40,7 @@ import org.springframework.test.context.jdbc.Sql;
 
 import com.tn.data.domain.Field;
 import com.tn.data.util.Fields;
+import com.tn.lang.util.Page;
 import com.tn.lang.util.function.WrappedException;
 
 @SpringBootTest(
@@ -205,6 +206,17 @@ class JdbcDataRepositoryIntegrationTest
     }
 
     @Test
+    void shouldFindAllPaginated()
+    {
+      ObjectNode object1 = dataRepository.insert(object(1, true, 10, 11, 1.23F, 2.34, BigDecimal.valueOf(3.45), "T1"));
+      ObjectNode object2 = dataRepository.insert(object(2, false, 11, 12, 2.23F, 3.34, BigDecimal.valueOf(4.45), "T2"));
+      ObjectNode object3 = dataRepository.insert(object(3, true, 12, 13, 3.23F, 4.34, BigDecimal.valueOf(5.45), "T3"));
+
+      assertEquals(new Page<>(List.of(object1, object2), 0, 2, 3), dataRepository.findAll(0, 2));
+      assertEquals(new Page<>(List.of(object3), 1, 2, 3), dataRepository.findAll(1, 2));
+    }
+
+    @Test
     void shouldFindAllWithKeys()
     {
       ObjectNode key1 = key(1);
@@ -242,6 +254,22 @@ class JdbcDataRepositoryIntegrationTest
         dataRepository.insertAll(objectNodes);
 
         assertEquals(List.of(objectNode), dataRepository.findFor(query));
+      }
+      catch (WrappedException e)
+      {
+        throw (Exception)unwrapException(e);
+      }
+    }
+
+    @ParameterizedTest
+    @MethodSource("findForObjectNodes")
+    void shouldFindForPaginated(String query, ObjectNode objectNode, List<ObjectNode> objectNodes) throws Exception
+    {
+      try
+      {
+        dataRepository.insertAll(objectNodes);
+
+        assertEquals(new Page<>(List.of(objectNode), 0, 1, 1), dataRepository.findFor(query, 0, objectNodes.size()));
       }
       catch (WrappedException e)
       {
@@ -398,7 +426,7 @@ class JdbcDataRepositoryIntegrationTest
         object3.set(FIELD_ID, LongNode.valueOf(EXPECTED_ID.getAndIncrement()))
       );
 
-      assertEquals(expectedObjects, dataRepository.insertAll(List.of(object1, object2, object3)));
+      assertEquals(expectedObjects, dataRepository.insertAll(object1, object2, object3));
       assertEquals(expectedObjects, dataRepository.findAll());
     }
   }

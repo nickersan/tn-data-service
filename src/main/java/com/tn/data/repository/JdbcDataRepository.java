@@ -1,5 +1,6 @@
 package com.tn.data.repository;
 
+import static java.lang.Math.ceilDiv;
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.groupingBy;
@@ -23,10 +24,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
-import javax.sql.DataSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -40,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.tn.data.domain.Field;
 import com.tn.data.util.Fields;
 import com.tn.lang.sql.PreparedStatements;
+import com.tn.lang.util.Page;
 import com.tn.lang.util.function.ConsumerWithThrows;
 import com.tn.lang.util.function.WrappedException;
 import com.tn.query.QueryParser;
@@ -55,12 +59,15 @@ public class JdbcDataRepository implements DataRepository
   private static final String LOGICAL_OR = " OR ";
   private static final String PARENTHESIS = "(%s)";
   private static final String SELECT = "SELECT %s FROM %s.%s";
+  private static final String COUNT = "SELECT COUNT(*) FROM %s.%s";
   private static final String INSERT = "INSERT INTO %s.%s(%s) VALUES (%s)";
   private static final String UPDATE = "UPDATE %s.%s SET %s WHERE %s";
   private static final String DELETE = "DELETE FROM %s.%s";
   private static final String WHERE = "%s WHERE %s";
   private static final String ORDER_BY = "%s ORDER BY %s";
+  private static final String OFFSET = "%s OFFSET %d ROWS FETCH NEXT %d ROWS ONLY";
 
+  private final ExecutorService queryExecutor;
   private final JdbcTemplate jdbcTemplate;
   private final Collection<Field> fields;
   private final Collection<Field> autoIncrementFields;
@@ -68,6 +75,7 @@ public class JdbcDataRepository implements DataRepository
   private final Collection<Field> mutableFields;
   private final QueryParser<JdbcPredicate> queryParser;
   private final String selectSql;
+  private final String countSql;
   private final String insertSql;
   private final String deleteSql;
   private final String schema;
@@ -77,14 +85,16 @@ public class JdbcDataRepository implements DataRepository
   private int batchSize = DEFAULT_BATCH_SIZE;
 
   public JdbcDataRepository(
-    DataSource dataSource,
+    ExecutorService queryExecutor,
+    JdbcTemplate jdbcTemplate,
     String schema,
     String table,
     Collection<Field> fields,
     QueryParser<JdbcPredicate> queryParser
   )
   {
-    this.jdbcTemplate = new JdbcTemplate(dataSource);
+    this.queryExecutor = queryExecutor;
+    this.jdbcTemplate = jdbcTemplate;
     this.schema = schema;
     this.table = table;
     this.fields = fields;
@@ -97,6 +107,7 @@ public class JdbcDataRepository implements DataRepository
     this.keyPredicate = keyFields.stream().map(field -> format(FIELD_PLACEHOLDER, field.column().name())).collect(joining(LOGICAL_AND));
 
     this.selectSql = selectSql(schema, table, fields);
+    this.countSql = countSql(schema, table);
     this.insertSql = insertSql(schema, table, fields);
     this.deleteSql = deleteSql(schema, table);
   }
@@ -135,6 +146,37 @@ public class JdbcDataRepository implements DataRepository
     catch (DataAccessException e)
     {
       throw new FindException(e.getCause());
+    }
+  }
+
+  @Override
+  public Page<ObjectNode> findAll(int pageNumber, int pageSize) throws FindException
+  {
+    try
+    {
+      Future<Collection<ObjectNode>> objectsFuture = queryExecutor.submit(
+        () -> jdbcTemplate.query(
+          paginated(orderByKeyFields(selectSql), pageNumber, pageSize),
+          this::object
+        )
+      );
+      @SuppressWarnings("DataFlowIssue")
+      int count = jdbcTemplate.query(countSql, this::count);
+
+      return new Page<>(
+        objectsFuture.get(),
+        pageNumber,
+        ceilDiv(count, pageSize),
+        count
+      );
+    }
+    catch (ExecutionException e)
+    {
+      throw new FindException(e.getCause().getCause());
+    }
+    catch (InterruptedException e)
+    {
+      throw new FindException(e);
     }
   }
 
@@ -182,6 +224,40 @@ public class JdbcDataRepository implements DataRepository
     catch (DataAccessException e)
     {
       throw new FindException(e.getCause());
+    }
+  }
+
+  @Override
+  public Page<ObjectNode> findFor(String query, int pageNumber, int pageSize) throws FindException
+  {
+    try
+    {
+      JdbcPredicate predicate = queryParser.parse(query);
+
+      Future<Collection<ObjectNode>> objectsFuture = queryExecutor.submit(
+        () -> jdbcTemplate.query(
+          paginated(orderByKeyFields(WHERE.formatted(selectSql, predicate.toSql())), pageNumber, pageSize),
+          predicate::setValues,
+          this::object
+        )
+      );
+      @SuppressWarnings({"DataFlowIssue", "SqlSourceToSinkFlow"})
+      int count = jdbcTemplate.query(WHERE.formatted(countSql, predicate.toSql()), predicate::setValues, this::count);
+
+      return new Page<>(
+        objectsFuture.get(),
+        pageNumber,
+        ceilDiv(count, pageSize),
+        count
+      );
+    }
+    catch (ExecutionException e)
+    {
+      throw new FindException(e.getCause().getCause());
+    }
+    catch (InterruptedException e)
+    {
+      throw new FindException(e);
     }
   }
 
@@ -396,6 +472,11 @@ public class JdbcDataRepository implements DataRepository
     return object;
   }
 
+  private int count(ResultSet resultSet) throws SQLException
+  {
+    return resultSet.next() ? resultSet.getInt(1) : 0;
+  }
+
   private Collection<Field> mutableFields(ObjectNode object)
   {
     return mutableFields.stream().filter(field -> object.has(field.name())).toList();
@@ -451,6 +532,15 @@ public class JdbcDataRepository implements DataRepository
     );
   }
 
+  private String countSql(String schema, String table)
+  {
+    return format(
+      COUNT,
+      schema,
+      table
+    );
+  }
+
   private String insertSql(String schema, String table, Collection<Field> fields)
   {
     Collection<Field> insertableFields = fields.stream().filter(field -> !field.column().autoIncrement()).toList();
@@ -487,6 +577,11 @@ public class JdbcDataRepository implements DataRepository
   private String orderByKeyFields(String sql)
   {
     return format(ORDER_BY, sql, keyFields.stream().map(field -> field.column().name()).collect(joining(COLUMN_SEPARATOR)));
+  }
+
+  private String paginated(String sql, int pageNumber, int pageSize)
+  {
+    return format(OFFSET, sql, pageNumber * pageSize, pageSize);
   }
 
   private AtomicInteger parameterIndex()
