@@ -46,6 +46,11 @@ public record Field(String name, FieldType type, Column column)
     object.set(name(), type().asJsonType(value));
   }
 
+  public <T extends JsonNode> T parseAsJsonType(String s)
+  {
+    return type().asJsonType(type().parse(s));
+  }
+
   public boolean existsIn(ObjectNode object)
   {
     JsonNode value = object.get(name);

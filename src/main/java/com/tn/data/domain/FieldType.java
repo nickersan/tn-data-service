@@ -6,6 +6,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.BooleanNode;
@@ -28,9 +30,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return Boolean.parseBoolean(s);
+      boolean value = resultSet.getBoolean(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -46,10 +49,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      boolean value = resultSet.getBoolean(columnName);
-      return resultSet.wasNull() ? null : value;
+      return Boolean.parseBoolean(s);
     }
   },
 
@@ -62,9 +64,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return Integer.parseInt(s);
+      int value = resultSet.getInt(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -80,10 +83,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      int value = resultSet.getInt(columnName);
-      return resultSet.wasNull() ? null : value;
+      return Integer.parseInt(s);
     }
   },
 
@@ -96,9 +98,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return Long.parseLong(s);
+      long value = resultSet.getLong(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -114,10 +117,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      long value = resultSet.getLong(columnName);
-      return resultSet.wasNull() ? null : value;
+      return Long.parseLong(s);
     }
   },
 
@@ -130,9 +132,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return Float.parseFloat(s);
+      float value = resultSet.getFloat(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -148,10 +151,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      float value = resultSet.getFloat(columnName);
-      return resultSet.wasNull() ? null : value;
+      return Float.parseFloat(s);
     }
   },
 
@@ -164,9 +166,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return Double.parseDouble(s);
+      double value = resultSet.getDouble(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -182,10 +185,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      double value = resultSet.getDouble(columnName);
-      return resultSet.wasNull() ? null : value;
+      return Double.parseDouble(s);
     }
   },
 
@@ -198,9 +200,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return new BigDecimal(s);
+      BigDecimal value = resultSet.getBigDecimal(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -216,10 +219,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      BigDecimal value = resultSet.getBigDecimal(columnName);
-      return resultSet.wasNull() ? null : value;
+      return new BigDecimal(s);
     }
   },
 
@@ -232,9 +234,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return s;
+      String value = resultSet.getString(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -250,10 +253,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      String value = resultSet.getString(columnName);
-      return resultSet.wasNull() ? null : value;
+      return s;
     }
   },
 
@@ -273,9 +275,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return Date.valueOf(s);
+      Date value = resultSet.getDate(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -291,10 +294,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      Date value = resultSet.getDate(columnName);
-      return resultSet.wasNull() ? null : value;
+      return Date.valueOf(s);
     }
   },
 
@@ -306,7 +308,7 @@ public enum FieldType
       try
       {
         //noinspection ConstantValue
-        return value != null && value.isTextual() && Time.valueOf(value.asText()) != null;
+        return value != null && value.isTextual() && Time.valueOf(LocalTime.parse(value.asText())) != null;
       }
       catch (IllegalArgumentException e)
       {
@@ -315,9 +317,10 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return Time.valueOf(s);
+      Time value = resultSet.getTime(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
@@ -333,10 +336,9 @@ public enum FieldType
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      Time value = resultSet.getTime(columnName);
-      return resultSet.wasNull() ? null : value;
+      return Time.valueOf(LocalTime.parse(s));
     }
   },
 
@@ -348,7 +350,7 @@ public enum FieldType
       try
       {
         //noinspection ConstantValue
-        return value != null && value.isTextual() && Timestamp.valueOf(value.asText()) != null;
+        return value != null && value.isTextual() && Timestamp.valueOf(LocalDateTime.parse(value.asText())) != null;
       }
       catch (IllegalArgumentException e)
       {
@@ -357,28 +359,28 @@ public enum FieldType
     }
 
     @Override
-    public Object parse(String s)
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
-      return Timestamp.valueOf(s);
+      Timestamp value = resultSet.getTimestamp(columnName);
+      return resultSet.wasNull() ? null : value;
     }
 
     @Override
     protected Object castJavaType(JsonNode value)
     {
-      return Timestamp.valueOf(value.asText());
+      return Timestamp.valueOf(LocalDateTime.parse(value.asText()));
     }
 
     @Override
     protected JsonNode castJsonType(Object value)
     {
-      return TextNode.valueOf(value.toString());
+      return TextNode.valueOf(((Timestamp)value).toLocalDateTime().toString());
     }
 
     @Override
-    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    protected Object parse(String s)
     {
-      Timestamp value = resultSet.getTimestamp(columnName);
-      return resultSet.wasNull() ? null : value;
+      return Timestamp.valueOf(LocalDateTime.parse(s));
     }
   };
 
@@ -432,11 +434,11 @@ public enum FieldType
     return new Field(name, this, column);
   }
 
-  public abstract Object parse(String s);
+  protected abstract Object get(ResultSet resultSet, String columnName) throws SQLException;
 
   protected abstract Object castJavaType(JsonNode value);
 
   protected abstract JsonNode castJsonType(Object value);
 
-  protected abstract Object get(ResultSet resultSet, String columnName) throws SQLException;
+  protected abstract Object parse(String s);
 }

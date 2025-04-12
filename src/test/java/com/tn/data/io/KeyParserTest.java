@@ -3,6 +3,8 @@ package com.tn.data.io;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Time;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
@@ -41,6 +43,9 @@ class KeyParserTest
   {
     LocalDateTime now = LocalDateTime.now();
 
+    Date date = Date.valueOf(now.toLocalDate());
+    Time time = Time.valueOf(now.toLocalTime());
+
     return Stream.of(
       Arguments.of(FieldType.BOOLEAN.field(FIELD_NAME, null), "true", objectNode(BooleanNode.valueOf(true))),
       Arguments.of(FieldType.INTEGER.field(FIELD_NAME, null), "12", objectNode(IntNode.valueOf(12))),
@@ -49,8 +54,8 @@ class KeyParserTest
       Arguments.of(FieldType.DOUBLE.field(FIELD_NAME, null), "1.23", objectNode(DoubleNode.valueOf(1.23))),
       Arguments.of(FieldType.DECIMAL.field(FIELD_NAME, null), "1.23", objectNode(DecimalNode.valueOf(BigDecimal.valueOf(1.23)))),
       Arguments.of(FieldType.TEXT.field(FIELD_NAME, null), "ABC", objectNode(TextNode.valueOf("ABC"))),
-      Arguments.of(FieldType.DATE.field(FIELD_NAME, null), now.toLocalDate().toString(), objectNode(TextNode.valueOf(now.toLocalDate().toString()))),
-      Arguments.of(FieldType.TIME.field(FIELD_NAME, null), now.toLocalTime().toString(), objectNode(TextNode.valueOf(now.toLocalTime().toString()))),
+      Arguments.of(FieldType.DATE.field(FIELD_NAME, null), date.toString(), objectNode(TextNode.valueOf(date.toString()))),
+      Arguments.of(FieldType.TIME.field(FIELD_NAME, null), time.toString(), objectNode(TextNode.valueOf(time.toString()))),
       Arguments.of(FieldType.TIMESTAMP.field(FIELD_NAME, null), now.toString(), objectNode(TextNode.valueOf(now.toString())))
     );
   }

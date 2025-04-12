@@ -55,10 +55,10 @@ public class KeyParser
     return key;
   }
 
-  private ObjectNode objectNode(Field field, Object value)
+  private ObjectNode objectNode(Field field, String key)
   {
     ObjectNode objectNode = new ObjectNode(null);
-    objectNode.set(field.name(), field.type().asJsonType(value));
+    objectNode.set(field.name(), field.parseAsJsonType(key));
     
     return objectNode;
   }
