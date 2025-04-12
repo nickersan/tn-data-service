@@ -41,7 +41,6 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tn.data.domain.Field;
-import com.tn.data.util.Fields;
 import com.tn.lang.sql.PreparedStatements;
 import com.tn.lang.util.Page;
 import com.tn.lang.util.function.ConsumerWithThrows;
@@ -456,7 +455,7 @@ public class JdbcDataRepository implements DataRepository
 
     for (Field field : fields)
     {
-      if (field.column().autoIncrement()) Fields.with(objectWithIdentifier, field, identifiers.get(field.column().name()));
+      if (field.column().autoIncrement()) field.set(objectWithIdentifier, identifiers.get(field.column().name()));
       else if (object.has(field.name())) objectWithIdentifier.set(field.name(), object.get(field.name()));
     }
 
@@ -491,7 +490,7 @@ public class JdbcDataRepository implements DataRepository
   {
     try
     {
-      return Fields.get(field, resultSet);
+      return field.type().asJsonType(field.getAsJavaType(resultSet));
     }
     catch (SQLException e)
     {
@@ -513,7 +512,7 @@ public class JdbcDataRepository implements DataRepository
 
   private ConsumerWithThrows<Field, SQLException> setValue(PreparedStatement preparedStatement, AtomicInteger index, ObjectNode object)
   {
-    return field -> setValue(preparedStatement, index, field, Fields.get(field, object));
+    return field -> setValue(preparedStatement, index, field, field.getAsJavaType(object));
   }
 
   private void setValue(PreparedStatement preparedStatement, AtomicInteger index, Field field, Object value) throws SQLException

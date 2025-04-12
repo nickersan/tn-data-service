@@ -48,7 +48,7 @@ class RepositoryConfiguration
       fields,
       new DefaultQueryParser<>(
         new JdbcPredicateFactory(fields.stream().collect(toMap(Field::name, field -> field.column().name()))),
-        ValueMappers.forFields(fields.stream().map(field -> new ValueMappers.Field(field.name(), field.type())).toList())
+        ValueMappers.forFields(fields.stream().map(field -> new ValueMappers.Field(field.name(), field.type().javaType())).toList())
       )
     );
   }

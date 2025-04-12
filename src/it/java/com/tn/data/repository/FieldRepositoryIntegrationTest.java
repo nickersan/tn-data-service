@@ -4,13 +4,9 @@ import static java.lang.String.format;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
-import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.List;
 import java.util.stream.Stream;
@@ -26,6 +22,7 @@ import org.springframework.test.context.jdbc.Sql;
 
 import com.tn.data.domain.Column;
 import com.tn.data.domain.Field;
+import com.tn.data.domain.FieldType;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class FieldRepositoryIntegrationTest
@@ -42,13 +39,13 @@ class FieldRepositoryIntegrationTest
   @ParameterizedTest
   @MethodSource({"types"})
   @Sql(executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD, statements = "DROP TABLE PUBLIC.TEST")
-  void shouldFindFields(int columnType, Class<?> fieldType) throws Exception
+  void shouldFindFields(int columnType, FieldType fieldType) throws Exception
   {
     createTable(columnType);
 
     assertEquals(
       List.of(
-        new Field("id", int.class, new Column("ID", Types.INTEGER, true, false, false)),
+        new Field("id", FieldType.INTEGER, new Column("ID", Types.INTEGER, true, false, false)),
         new Field("value1", fieldType, new Column("VALUE_1", columnType, false, false, false)),
         new Field("value2", fieldType, new Column("VALUE_2", columnType, false, true, false))
       ),
@@ -60,19 +57,19 @@ class FieldRepositoryIntegrationTest
   {
     // Note: H2 doesn't support BIT or LONGNVARCHAR.
     return Stream.of(
-      Arguments.of(Types.BOOLEAN, boolean.class),
-      Arguments.of(Types.TINYINT, int.class),
-      Arguments.of(Types.SMALLINT, int.class),
-      Arguments.of(Types.INTEGER, int.class),
-      Arguments.of(Types.BIGINT, long.class),
-      Arguments.of(Types.FLOAT, float.class),
-      Arguments.of(Types.DOUBLE, double.class),
-      Arguments.of(Types.DECIMAL, BigDecimal.class),
-      Arguments.of(Types.CHAR, String.class),
-      Arguments.of(Types.VARCHAR, String.class),
-      Arguments.of(Types.DATE, Date.class),
-      Arguments.of(Types.TIME, Time.class),
-      Arguments.of(Types.TIMESTAMP, Timestamp.class)
+      Arguments.of(Types.BOOLEAN, FieldType.BOOLEAN),
+      Arguments.of(Types.TINYINT, FieldType.INTEGER),
+      Arguments.of(Types.SMALLINT, FieldType.INTEGER),
+      Arguments.of(Types.INTEGER, FieldType.INTEGER),
+      Arguments.of(Types.BIGINT, FieldType.LONG),
+      Arguments.of(Types.FLOAT, FieldType.FLOAT),
+      Arguments.of(Types.DOUBLE, FieldType.DOUBLE),
+      Arguments.of(Types.DECIMAL, FieldType.DECIMAL),
+      Arguments.of(Types.CHAR, FieldType.TEXT),
+      Arguments.of(Types.VARCHAR, FieldType.TEXT),
+      Arguments.of(Types.DATE, FieldType.DATE),
+      Arguments.of(Types.TIME, FieldType.TIME),
+      Arguments.of(Types.TIMESTAMP, FieldType.TIMESTAMP)
     );
   }
 
@@ -84,9 +81,9 @@ class FieldRepositoryIntegrationTest
 
     assertEquals(
       List.of(
-        new Field("id", long.class, new Column("ID", Types.BIGINT, true, false, true)),
-        new Field("value1", String.class, new Column("VALUE_1", Types.VARCHAR, false, false, false)),
-        new Field("value2", String.class, new Column("VALUE_2", Types.VARCHAR, false, true, false))
+        new Field("id", FieldType.LONG, new Column("ID", Types.BIGINT, true, false, true)),
+        new Field("value1", FieldType.TEXT, new Column("VALUE_1", Types.VARCHAR, false, false, false)),
+        new Field("value2", FieldType.TEXT, new Column("VALUE_2", Types.VARCHAR, false, true, false))
       ),
       fieldRepository.findForTable(SCHEMA, TABLE)
     );

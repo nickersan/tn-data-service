@@ -1,0 +1,442 @@
+package com.tn.data.domain;
+
+import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Time;
+import java.sql.Timestamp;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.DecimalNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.FloatNode;
+import com.fasterxml.jackson.databind.node.IntNode;
+import com.fasterxml.jackson.databind.node.LongNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+
+public enum FieldType
+{
+  BOOLEAN(Boolean.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      return value != null && value.isBoolean();
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return Boolean.parseBoolean(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return value.asBoolean();
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return BooleanNode.valueOf((Boolean)value);
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      boolean value = resultSet.getBoolean(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  INTEGER(Integer.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      return value != null && value.isInt();
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return Integer.parseInt(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return value.asInt();
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return IntNode.valueOf((Integer)value);
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      int value = resultSet.getInt(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  LONG(Long.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      return value != null && value.isLong();
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return Long.parseLong(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return value.asLong();
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return LongNode.valueOf((Long)value);
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      long value = resultSet.getLong(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  FLOAT(Float.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      return value != null && value.isFloat();
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return Float.parseFloat(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return value.floatValue();
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return FloatNode.valueOf((Float)value);
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      float value = resultSet.getFloat(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  DOUBLE(Double.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      return value != null && value.isDouble();
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return Double.parseDouble(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return value.asDouble();
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return DoubleNode.valueOf((Double)value);
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      double value = resultSet.getDouble(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  DECIMAL(BigDecimal.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      return value != null && value.isBigDecimal();
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return new BigDecimal(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return value.decimalValue();
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return DecimalNode.valueOf((BigDecimal)value);
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      BigDecimal value = resultSet.getBigDecimal(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  TEXT(String.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      return value != null && value.isTextual();
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return s;
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return value.asText();
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return TextNode.valueOf((String)value);
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      String value = resultSet.getString(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  DATE(Date.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      try
+      {
+        return value != null && value.isTextual() && Date.valueOf(value.asText()) != null;
+      }
+      catch (IllegalArgumentException e)
+      {
+        return false;
+      }
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return Date.valueOf(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return Date.valueOf(value.asText());
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return TextNode.valueOf(value.toString());
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      Date value = resultSet.getDate(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  TIME(Time.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      try
+      {
+        //noinspection ConstantValue
+        return value != null && value.isTextual() && Time.valueOf(value.asText()) != null;
+      }
+      catch (IllegalArgumentException e)
+      {
+        return false;
+      }
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return Time.valueOf(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return Time.valueOf(value.asText());
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return TextNode.valueOf(value.toString());
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      Time value = resultSet.getTime(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  },
+
+  TIMESTAMP(Timestamp.class)
+  {
+    @Override
+    public boolean isJsonType(JsonNode value)
+    {
+      try
+      {
+        //noinspection ConstantValue
+        return value != null && value.isTextual() && Timestamp.valueOf(value.asText()) != null;
+      }
+      catch (IllegalArgumentException e)
+      {
+        return false;
+      }
+    }
+
+    @Override
+    public Object parse(String s)
+    {
+      return Timestamp.valueOf(s);
+    }
+
+    @Override
+    protected Object castJavaType(JsonNode value)
+    {
+      return Timestamp.valueOf(value.asText());
+    }
+
+    @Override
+    protected JsonNode castJsonType(Object value)
+    {
+      return TextNode.valueOf(value.toString());
+    }
+
+    @Override
+    protected Object get(ResultSet resultSet, String columnName) throws SQLException
+    {
+      Timestamp value = resultSet.getTimestamp(columnName);
+      return resultSet.wasNull() ? null : value;
+    }
+  };
+
+  private final Class<?> javaType;
+
+  FieldType(Class<?> javaType)
+  {
+    this.javaType = javaType;
+  }
+
+  public Class<?> javaType()
+  {
+    return javaType;
+  }
+
+  public <T> T asJavaType(JsonNode value)
+  {
+    if (!isJsonType(value)) throw new IllegalArgumentException("Value " + value + " is not of type " + this);
+
+    //noinspection unchecked
+    return (T)castJavaType(value);
+  }
+
+  public <T extends JsonNode> T asJsonType(Object value)
+  {
+    if (value == null) return null;
+    
+    if (!isJavaType(value)) throw new IllegalArgumentException("Value " + value + " is not of type " + this);
+
+    //noinspection unchecked
+    return (T)castJsonType(value);
+  }
+
+  public boolean isJavaType(Object value)
+  {
+    return value != null && value.getClass() == javaType;
+  }
+  
+  public abstract boolean isJsonType(JsonNode value);
+
+  public boolean has(ObjectNode object)
+  {
+    if (object == null) return false;
+
+    JsonNode value = object.get(name());
+    return value != null && isJsonType(value);
+  }
+
+  public Field field(String name, Column column)
+  {
+    return new Field(name, this, column);
+  }
+
+  public abstract Object parse(String s);
+
+  protected abstract Object castJavaType(JsonNode value);
+
+  protected abstract JsonNode castJsonType(Object value);
+
+  protected abstract Object get(ResultSet resultSet, String columnName) throws SQLException;
+}

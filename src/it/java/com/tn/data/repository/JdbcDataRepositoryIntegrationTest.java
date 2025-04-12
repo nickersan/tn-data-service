@@ -39,7 +39,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.jdbc.Sql;
 
 import com.tn.data.domain.Field;
-import com.tn.data.util.Fields;
+import com.tn.data.domain.FieldType;
 import com.tn.lang.util.Page;
 import com.tn.lang.util.function.WrappedException;
 
@@ -55,16 +55,16 @@ import com.tn.lang.util.function.WrappedException;
 class JdbcDataRepositoryIntegrationTest
 {
   private static final String FIELD_ID = "id";
-  private static final Field BOOLEAN_VALUE = new Field("booleanValue", boolean.class, null);
-  private static final Field INTEGER_VALUE = new Field("integerValue", int.class, null);
-  private static final Field LONG_VALUE = new Field("longValue", long.class, null);
-  private static final Field FLOAT_VALUE = new Field("floatValue", float.class, null);
-  private static final Field DOUBLE_VALUE = new Field("doubleValue", double.class, null);
-  private static final Field DECIMAL_VALUE = new Field("decimalValue", BigDecimal.class, null);
-  private static final Field STRING_VALUE = new Field("stringValue", String.class, null);
-  private static final Field DATE_VALUE = new Field("dateValue", Date.class, null);
-  private static final Field TIME_VALUE = new Field("timeValue", Time.class, null);
-  private static final Field TIMESTAMP_VALUE = new Field("timestampValue", Timestamp.class, null);
+  private static final Field BOOLEAN_VALUE = FieldType.BOOLEAN.field("booleanValue", null);
+  private static final Field INTEGER_VALUE = FieldType.INTEGER.field("integerValue", null);
+  private static final Field LONG_VALUE = FieldType.LONG.field("longValue", null);
+  private static final Field FLOAT_VALUE = FieldType.FLOAT.field("floatValue", null);
+  private static final Field DOUBLE_VALUE = FieldType.DOUBLE.field("doubleValue", null);
+  private static final Field DECIMAL_VALUE = FieldType.DECIMAL.field("decimalValue", null);
+  private static final Field STRING_VALUE = FieldType.TEXT.field("stringValue", null);
+  private static final Field DATE_VALUE = FieldType.DATE.field("dateValue", null);
+  private static final Field TIME_VALUE = FieldType.TIME.field("timeValue", null);
+  private static final Field TIMESTAMP_VALUE = FieldType.TIMESTAMP.field("timestampValue", null);
 
   @Autowired
   DataSource dataSource;
@@ -134,16 +134,16 @@ class JdbcDataRepositoryIntegrationTest
 
     ObjectNode objectNode = new ObjectNode(null);
     if (id != null) objectNode.set(FIELD_ID, IntNode.valueOf(id));
-    if (booleanValue != null) Fields.with(objectNode, BOOLEAN_VALUE, booleanValue);
-    Fields.with(objectNode, INTEGER_VALUE, integerValue);
-    Fields.with(objectNode, LONG_VALUE, longValue);
-    Fields.with(objectNode, FLOAT_VALUE, floatValue);
-    Fields.with(objectNode, DOUBLE_VALUE, doubleValue);
-    Fields.with(objectNode, DECIMAL_VALUE, decimalValue);
-    Fields.with(objectNode, STRING_VALUE, stringValue);
-    Fields.with(objectNode, DATE_VALUE, dateValue);
-    Fields.with(objectNode, TIME_VALUE, timeValue);
-    Fields.with(objectNode, TIMESTAMP_VALUE, timestampValue);
+    if (booleanValue != null) BOOLEAN_VALUE.set(objectNode, booleanValue);
+    INTEGER_VALUE.set(objectNode, integerValue);
+    LONG_VALUE.set(objectNode, longValue);
+    FLOAT_VALUE.set(objectNode, floatValue);
+    DOUBLE_VALUE.set(objectNode, doubleValue);
+    DECIMAL_VALUE.set(objectNode, decimalValue);
+    STRING_VALUE.set(objectNode, stringValue);
+    DATE_VALUE.set(objectNode, dateValue);
+    TIME_VALUE.set(objectNode, timeValue);
+    TIMESTAMP_VALUE.set(objectNode, timestampValue);
 
     return objectNode;
   }
@@ -551,7 +551,7 @@ class JdbcDataRepositoryIntegrationTest
     {
       ObjectNode mutation = new ObjectNode(null);
       mutation.set(FIELD_ID, object.get(FIELD_ID));
-      values.forEach((field, value) -> Fields.with(mutation, field, value));
+      values.forEach((field, value) -> field.set(mutation, value));
 
       return mutation;
     }
