@@ -4,18 +4,24 @@ import java.io.IOException;
 import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.function.Consumer;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.RequiredArgsConstructor;
 
 import com.tn.data.domain.Field;
 
-@RequiredArgsConstructor
 public class KeyParser
 {
   private final Collection<Field> keyFields;
   private final ObjectMapper objectMapper;
+
+  public KeyParser(Collection<Field> keyFields, ObjectMapper objectMapper)
+  {
+    this.keyFields = keyFields;
+    this.objectMapper = objectMapper;
+  }
 
   public ObjectNode parse(String key) throws InvalidKeyException
   {
@@ -51,8 +57,29 @@ public class KeyParser
 
   private ObjectNode checkFields(ObjectNode key)
   {
-    keyFields.forEach(keyField -> { if (!key.has(keyField.name())) throw new InvalidKeyException("Invalid key: " + key); });
+    keyFields.forEach(coerceFieldType(key));
     return key;
+  }
+
+  private Consumer<Field> coerceFieldType(ObjectNode key)
+  {
+    return field ->
+    {
+      if (!field.existsIn(key))
+      {
+        JsonNode value = key.get(field.name());
+        if (value == null) throw new InvalidKeyException("Invalid key: " + key + " - field: " + field.name());
+
+        try
+        {
+          key.set(field.name(), field.coerce(value));
+        }
+        catch (IllegalArgumentException e)
+        {
+          throw new InvalidKeyException("Invalid key: " + key + " - field: " + field.name(), e);
+        }
+      }
+    };
   }
 
   private ObjectNode objectNode(Field field, String key)

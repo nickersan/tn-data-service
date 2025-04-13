@@ -14,7 +14,7 @@ public record Field(String name, FieldType type, Column column)
 
     try
     {
-      return value != null ? type().asJavaType(value) : null;
+      return value != null ? type.asJavaType(value) : null;
     }
     catch (IllegalArgumentException e)
     {
@@ -38,22 +38,27 @@ public record Field(String name, FieldType type, Column column)
   public <T> T getAsJavaType(ResultSet resultSet) throws SQLException
   {
     //noinspection unchecked
-    return (T)type().get(resultSet, column().name());
+    return (T)type.get(resultSet, column().name());
   }
 
   public void set(ObjectNode object, Object value)
   {
-    object.set(name(), type().asJsonType(value));
+    object.set(name(), type.asJsonType(value));
   }
 
   public <T extends JsonNode> T parseAsJsonType(String s)
   {
-    return type().asJsonType(type().parse(s));
+    return type.asJsonType(type.parse(s));
   }
 
   public boolean existsIn(ObjectNode object)
   {
     JsonNode value = object.get(name);
     return value != null && type.isJsonType(value);
+  }
+
+  public JsonNode coerce(JsonNode value)
+  {
+    return type.coerce(value);
   }
 }

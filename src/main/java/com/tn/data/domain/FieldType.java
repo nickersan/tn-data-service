@@ -16,7 +16,6 @@ import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.FloatNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.LongNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 public enum FieldType
@@ -98,6 +97,13 @@ public enum FieldType
     }
 
     @Override
+    public JsonNode coerce(JsonNode value)
+    {
+      if (!value.canConvertToLong()) throw new IllegalArgumentException("Cannot coerce to long: " + value);
+      return LongNode.valueOf(value.asLong());
+    }
+
+    @Override
     protected Object get(ResultSet resultSet, String columnName) throws SQLException
     {
       long value = resultSet.getLong(columnName);
@@ -129,6 +135,16 @@ public enum FieldType
     public boolean isJsonType(JsonNode value)
     {
       return value != null && value.isFloat();
+    }
+
+    @Override
+    public JsonNode coerce(JsonNode value)
+    {
+      if (!value.isDouble()) throw new IllegalArgumentException("Cannot coerce to float: " + value);
+
+      double d = value.asDouble();
+      if (d > Float.MAX_VALUE || d < Float.MIN_VALUE) throw new IllegalArgumentException("Cannot coerce to float: " + value);
+      return FloatNode.valueOf((float)value.asDouble());
     }
 
     @Override
@@ -197,6 +213,13 @@ public enum FieldType
     public boolean isJsonType(JsonNode value)
     {
       return value != null && value.isBigDecimal();
+    }
+
+    @Override
+    public JsonNode coerce(JsonNode value)
+    {
+      if (!value.isDouble()) throw new IllegalArgumentException("Cannot coerce to float: " + value);
+      return DecimalNode.valueOf(BigDecimal.valueOf(value.asDouble()));
     }
 
     @Override
@@ -421,17 +444,14 @@ public enum FieldType
   
   public abstract boolean isJsonType(JsonNode value);
 
-  public boolean has(ObjectNode object)
-  {
-    if (object == null) return false;
-
-    JsonNode value = object.get(name());
-    return value != null && isJsonType(value);
-  }
-
   public Field field(String name, Column column)
   {
     return new Field(name, this, column);
+  }
+
+  public JsonNode coerce(JsonNode value)
+  {
+    return value;
   }
 
   protected abstract Object get(ResultSet resultSet, String columnName) throws SQLException;
