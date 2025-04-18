@@ -7,6 +7,7 @@ import java.util.concurrent.Executors;
 import javax.sql.DataSource;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -26,9 +27,27 @@ class RepositoryConfiguration
 {
   @Bean
   @Lazy
-  DataRepository dataRepository(
+  @ConditionalOnProperty({"tn.data.schema", "tn.data.table"})
+  Collection<Field> fields(
     FieldRepository fieldRepository,
+    @Value("${tn.data.schema}")
+    String schema,
+    @Value("${tn.data.table}")
+    String table
+  )
+  {
+    Collection<Field> fields = fieldRepository.findForTable(schema, table);
+    if (fields.isEmpty()) throw new IllegalStateException("No such table: " + schema + "." + table);
+
+    return fields;
+  }
+
+  @Bean
+  @Lazy
+  @ConditionalOnProperty({"tn.data.schema", "tn.data.table"})
+  DataRepository dataRepository(
     JdbcTemplate jdbcTemplate,
+    Collection<Field> fields,
     @Value("${tn.data.schema}")
     String schema,
     @Value("${tn.data.table}")
@@ -37,9 +56,6 @@ class RepositoryConfiguration
     int parallelism
   )
   {
-    Collection<Field> fields = fieldRepository.findForTable(schema, table);
-    if (fields.isEmpty()) throw new IllegalStateException("No such table: " + schema + "." + table);
-
     return new JdbcDataRepository(
       Executors.newWorkStealingPool(parallelism),
       jdbcTemplate,
@@ -54,7 +70,6 @@ class RepositoryConfiguration
   }
 
   @Bean
-  @Lazy
   FieldRepository fieldRepository(DataSource dataSource)
   {
     return new JdbcFieldRepository(dataSource);
