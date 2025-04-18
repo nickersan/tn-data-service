@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.tn.data.domain.Field;
@@ -23,6 +24,7 @@ import com.tn.query.ValueMappers;
 import com.tn.query.jdbc.JdbcPredicateFactory;
 
 @Configuration
+@Profile("!api-integration-test")
 class RepositoryConfiguration
 {
   @Bean

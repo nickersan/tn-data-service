@@ -33,7 +33,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import com.tn.data.domain.Field;
 
-class KeyParserTest
+class Base64KeyParserTest
 {
   private static final Field BOOLEAN_ID = BOOLEAN.field("booleanId", null);
   private static final Field INTEGER_ID = INTEGER.field("integerId", null);
@@ -52,7 +52,7 @@ class KeyParserTest
   @MethodSource("singleFieldKeys")
   void shouldParseSingleFieldKey(Field field, Object value)
   {
-    assertEquals(key(field, value), new KeyParser(List.of(field), OBJECT_MAPPER).parse(value.toString()));
+    assertEquals(key(field, value), new Base64KeyParser(List.of(field), OBJECT_MAPPER).parse(value.toString()));
   }
 
   private static Stream<Arguments> singleFieldKeys()
@@ -83,7 +83,7 @@ class KeyParserTest
 
     assertEquals(
       key,
-      new KeyParser(ALL_FIELDS, OBJECT_MAPPER).parse(Base64.encodeBase64String(OBJECT_MAPPER.writeValueAsBytes(key)))
+      new Base64KeyParser(ALL_FIELDS, OBJECT_MAPPER).parse(Base64.encodeBase64String(OBJECT_MAPPER.writeValueAsBytes(key)))
     );
   }
 
@@ -96,7 +96,7 @@ class KeyParserTest
 
     assertThrows(
       InvalidKeyException.class,
-      () ->new KeyParser(ALL_FIELDS, OBJECT_MAPPER).parse(Base64.encodeBase64String(OBJECT_MAPPER.writeValueAsBytes(key)))
+      () ->new Base64KeyParser(ALL_FIELDS, OBJECT_MAPPER).parse(Base64.encodeBase64String(OBJECT_MAPPER.writeValueAsBytes(key)))
     );
   }
 
