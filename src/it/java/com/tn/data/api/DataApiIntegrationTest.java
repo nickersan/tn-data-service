@@ -5,11 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -20,6 +22,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
@@ -56,6 +59,41 @@ class DataApiIntegrationTest
     ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity("/" + key.get(FIELD_ID).asText(), ObjectNode.class);
     assertTrue(response.getStatusCode().is2xxSuccessful());
     assertEquals(data, response.getBody());
+  }
+
+  @Test
+  void shouldGet()
+  {
+    ObjectNode data1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+    ObjectNode data2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_NAME, TextNode.valueOf("Data 2")));
+
+    when(dataRepository.findAll()).thenReturn(List.of(data1, data2));
+
+    ResponseEntity<ArrayNode> response = testRestTemplate.getForEntity("/", ArrayNode.class);
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(new ArrayNode(null, List.of(data1, data2)), response.getBody());
+  }
+
+  @Test
+  void shouldGetWithSimpleKeys()
+  {
+    ObjectNode key1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
+    ObjectNode key2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2)));
+    ObjectNode data1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+    ObjectNode data2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_NAME, TextNode.valueOf("Data 2")));
+
+    when(keyParser.parse(key1.get(FIELD_ID).asText())).thenReturn(key1);
+    when(keyParser.parse(key2.get(FIELD_ID).asText())).thenReturn(key2);
+    when(dataRepository.findAll(List.of(key1, key2))).thenReturn(List.of(data1, data2));
+
+    String url = UriComponentsBuilder.fromPath("/")
+      .queryParam("key", List.of(key1.get(FIELD_ID).asText(), key2.get(FIELD_ID).asText()))
+      .encode()
+      .toUriString();
+
+    ResponseEntity<ArrayNode> response = testRestTemplate.getForEntity(url, ArrayNode.class);
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(new ArrayNode(null, List.of(data1, data2)), response.getBody());
   }
 
   @Test

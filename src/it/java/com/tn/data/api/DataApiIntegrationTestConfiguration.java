@@ -11,7 +11,7 @@ import com.tn.data.repository.DataRepository;
 
 @Configuration
 @Profile("api-integration-test")
-class IntegrationTestConfiguration
+class DataApiIntegrationTestConfiguration
 {
   @Bean
   DataRepository dataRepository()

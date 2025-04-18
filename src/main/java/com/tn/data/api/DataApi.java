@@ -11,8 +11,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface DataApi
 {
   @GetMapping("/{key}")
-  ResponseEntity<ObjectNode> find(@PathVariable("key") String key);
+  ResponseEntity<ObjectNode> get(@PathVariable("key") String key);
 
   @GetMapping
-  ResponseEntity<Collection<ObjectNode>> findAll(@RequestParam("key") Collection<String> keys);
+  ResponseEntity<Iterable<ObjectNode>> get(
+    @RequestParam(value = "key") Collection<String> keys,
+    @RequestParam(value = "q", required = false) String query,
+    @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
+    @RequestParam(value = "pageSize", required = false) Integer pageSize
+  );
 }
