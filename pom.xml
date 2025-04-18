@@ -19,12 +19,6 @@
 
   <packaging>jar</packaging>
 
-  <properties>
-
-    <contract-producer.base-test-class>com.tn.data.AbstractContractTest</contract-producer.base-test-class>
-
-  </properties>
-
   <dependencies>
 
     <dependency>
@@ -157,5 +151,21 @@
     </dependency>
 
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-contract-maven-plugin</artifactId>
+        <version>${spring-cloud.version}</version>
+        <extensions>true</extensions>
+        <configuration>
+          <packageWithBaseClasses>com.tn.data</packageWithBaseClasses>
+<!--          <baseClassForTests>com.tn.data.AbstractContractTest</baseClassForTests>-->
+<!--          <contractsDirectory>src/ct/resources/contracts</contractsDirectory>-->
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 
 </project>
