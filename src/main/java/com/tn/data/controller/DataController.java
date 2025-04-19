@@ -6,7 +6,10 @@ import static com.tn.lang.Strings.isNotNullOrWhitespace;
 
 import java.util.Collection;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ContainerNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.tn.data.api.DataApi;
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
+import com.tn.lang.util.Page;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,12 +31,14 @@ import com.tn.data.repository.DataRepository;
 @ConditionalOnBean({DataRepository.class, KeyParser.class})
 public class DataController implements DataApi
 {
-  private static final int DEFAULT_PAGE_NUMBER = 0;
-  private static final int DEFAULT_PAGE_SIZE = 100;
+  public static final int DEFAULT_PAGE_NUMBER = 0;
+  public static final int DEFAULT_PAGE_SIZE = 100;
+
   private static final String FIELD_MESSAGE = "message";
 
   private final DataRepository dataRepository;
   private final KeyParser keyParser;
+  private final ObjectMapper objectMapper;
 
   @Override
   public ResponseEntity<ObjectNode> get(String key)
@@ -43,7 +49,7 @@ public class DataController implements DataApi
   }
 
   @Override
-  public ResponseEntity<Iterable<ObjectNode>> get(
+  public ResponseEntity<ContainerNode<?>> get(
     @RequestParam(value = "key", required = false) Collection<String> keys,
     @RequestParam(value = "q", required = false) String query,
     @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
@@ -52,25 +58,25 @@ public class DataController implements DataApi
   {
     if (isNotEmpty(keys))
     {
-      if (query != null) throw new BadRequestException("Query parameters not allowed together with key(s).");
-      if (pageNumber != null || pageSize != null) throw new BadRequestException("Pagination not supported with Key(s).");
+      if (query != null) throw new BadRequestException("Query parameter not allowed with key(s)");
+      if (pageNumber != null || pageSize != null) throw new BadRequestException("Pagination not supported with Key(s)");
 
-      return ResponseEntity.ok(dataRepository.findAll(parseKeys(keys)));
+      return ResponseEntity.ok(arrayNode(dataRepository.findAll(parseKeys(keys))));
     }
     else if (isNotNullOrWhitespace(query))
     {
       return ResponseEntity.ok(
         pageNumber != null || pageSize != null ?
-          dataRepository.findFor(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE)) :
-          dataRepository.findFor(query)
+          objectNode(dataRepository.findFor(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE))) :
+          arrayNode(dataRepository.findFor(query))
       );
     }
     else
     {
       return ResponseEntity.ok(
         pageNumber != null || pageSize != null ?
-          dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE)) :
-          dataRepository.findAll()
+          objectNode(dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE))) :
+          arrayNode(dataRepository.findAll())
       );
     }
   }
@@ -79,9 +85,19 @@ public class DataController implements DataApi
   ResponseEntity<ObjectNode> badRequest(BadRequestException e)
   {
     ObjectNode error = new ObjectNode(null);
-    error.put(FIELD_MESSAGE, e.getMessage());
+    error.set(FIELD_MESSAGE, TextNode.valueOf(e.getMessage()));
 
     return  ResponseEntity.badRequest().body(error);
+  }
+
+  private ContainerNode<?> arrayNode(Collection<ObjectNode> objects)
+  {
+    return objectMapper.createArrayNode().addAll(objects);
+  }
+
+  private ContainerNode<?> objectNode(Page<ObjectNode> page)
+  {
+    return objectMapper.valueToTree(page);
   }
 
   private Iterable<ObjectNode> parseKeys(Collection<String> keys)
