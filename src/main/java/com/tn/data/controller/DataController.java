@@ -5,8 +5,10 @@ import static com.tn.lang.Objects.coalesce;
 import static com.tn.lang.Strings.isNotNullOrWhitespace;
 
 import java.util.Collection;
+import java.util.stream.StreamSupport;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ContainerNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -14,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.tn.data.api.DataApi;
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
+import com.tn.data.repository.RepositoryException;
 import com.tn.lang.util.Page;
 
 @Slf4j
@@ -33,8 +37,7 @@ public class DataController implements DataApi
 {
   public static final int DEFAULT_PAGE_NUMBER = 0;
   public static final int DEFAULT_PAGE_SIZE = 100;
-
-  private static final String FIELD_MESSAGE = "message";
+  public static final String FIELD_MESSAGE = "message";
 
   private final DataRepository dataRepository;
   private final KeyParser keyParser;
@@ -81,11 +84,32 @@ public class DataController implements DataApi
     }
   }
 
-  @ExceptionHandler(BadRequestException.class)
-  ResponseEntity<ObjectNode> badRequest(BadRequestException e)
+  @Override
+  public ResponseEntity<ContainerNode<?>> post(RequestEntity<ContainerNode<?>> request)
   {
+    if (request.getBody() instanceof ObjectNode) return ResponseEntity.ok(dataRepository.insert(objectNode(request.getBody())));
+    else if (request.getBody() instanceof ArrayNode) return ResponseEntity.ok(arrayNode(dataRepository.insertAll(iterable(request.getBody()))));
+    else throw new BadRequestException("Invalid body");
+  }
+
+  @ExceptionHandler({BadRequestException.class, RepositoryException.class})
+  ResponseEntity<ObjectNode> badRequest(Exception e)
+  {
+    log.error("Handling error", e);
+
     ObjectNode error = new ObjectNode(null);
     error.set(FIELD_MESSAGE, TextNode.valueOf(e.getMessage()));
+
+    return  ResponseEntity.badRequest().body(error);
+  }
+
+  @ExceptionHandler(ClassCastException.class)
+  ResponseEntity<ObjectNode> classCast(ClassCastException e)
+  {
+    log.error("Handling error", e);
+
+    ObjectNode error = new ObjectNode(null);
+    error.set(FIELD_MESSAGE, TextNode.valueOf("Invalid body"));
 
     return  ResponseEntity.badRequest().body(error);
   }
@@ -95,9 +119,19 @@ public class DataController implements DataApi
     return objectMapper.createArrayNode().addAll(objects);
   }
 
+  private ObjectNode objectNode(ContainerNode<?> node)
+  {
+    return (ObjectNode)node;
+  }
+
   private ContainerNode<?> objectNode(Page<ObjectNode> page)
   {
     return objectMapper.valueToTree(page);
+  }
+
+  private Iterable<ObjectNode> iterable(ContainerNode<?> array)
+  {
+    return StreamSupport.stream(array.spliterator(), false).map(ObjectNode.class::cast).toList();
   }
 
   private Iterable<ObjectNode> parseKeys(Collection<String> keys)

@@ -3,16 +3,22 @@ package com.tn.data.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyIterable;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import static com.tn.data.controller.DataController.DEFAULT_PAGE_NUMBER;
 import static com.tn.data.controller.DataController.DEFAULT_PAGE_SIZE;
+import static com.tn.data.controller.DataController.FIELD_MESSAGE;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.StreamSupport;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,18 +29,22 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentMatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
+import com.tn.data.repository.InsertException;
 import com.tn.lang.util.Page;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -44,6 +54,7 @@ class DataApiIntegrationTest
   private static final String FIELD_ID = "id";
   private static final String FIELD_ID_2 = "id2";
   private static final String FIELD_NAME = "name";
+  private static final ParameterizedTypeReference<List<ObjectNode>> TYPE_REFERENCE_OBJECTS = new ParameterizedTypeReference<>() {};
   private static final ParameterizedTypeReference<Page<ObjectNode>> TYPE_REFERENCE_PAGE = new ParameterizedTypeReference<>() {};
 
   @Autowired
@@ -252,9 +263,9 @@ class DataApiIntegrationTest
   {
     ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity("/?key=1&q=x", ObjectNode.class);
 
-    assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
+    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     assertNotNull(response.getBody());
-    assertEquals("Query parameter not allowed with key(s)", response.getBody().get("message").asText());
+    assertEquals("Query parameter not allowed with key(s)", response.getBody().get(FIELD_MESSAGE).asText());
   }
 
   @ParameterizedTest
@@ -263,9 +274,66 @@ class DataApiIntegrationTest
   {
     ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity("/?key=1&" + paginationParameter, ObjectNode.class);
 
-    assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
+    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     assertNotNull(response.getBody());
-    assertEquals("Pagination not supported with Key(s)", response.getBody().get("message").asText());
+    assertEquals("Pagination not supported with Key(s)", response.getBody().get(FIELD_MESSAGE).asText());
+  }
+
+  @Test
+  void shouldPostWithObject()
+  {
+    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+
+    when(dataRepository.insert(data)).thenReturn(data);
+
+    ResponseEntity<ObjectNode> response = testRestTemplate.postForEntity("/", data, ObjectNode.class);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(data, response.getBody());
+
+    verify(dataRepository).insert(data);
+  }
+
+  @Test
+  void shouldPostWithArray()
+  {
+    List<ObjectNode> data = List.of(
+      objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1"))),
+      objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_NAME, TextNode.valueOf("Data 2")))
+    );
+
+    when(dataRepository.insertAll(anyIterable())).thenReturn(data);
+
+    ResponseEntity<List<ObjectNode>> response = testRestTemplate.exchange("/", HttpMethod.POST, body(data), TYPE_REFERENCE_OBJECTS);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(data, response.getBody());
+
+    verify(dataRepository).insertAll(argThat(containsAll(data)));
+  }
+
+  @Test
+  void shouldNotPostWithInvalidBody()
+  {
+    ResponseEntity<ObjectNode> response = testRestTemplate.postForEntity("/", List.of("INVALID"), ObjectNode.class);
+
+    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertNotNull(response.getBody());
+    assertEquals("Invalid body", response.getBody().get(FIELD_MESSAGE).asText());
+  }
+
+  @Test
+  void shouldNotPostWithRepositoryError()
+  {
+    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+
+    when(dataRepository.insert(data)).thenThrow(new InsertException("TESTING"));
+
+    ResponseEntity<ObjectNode> response = testRestTemplate.postForEntity("/", data, ObjectNode.class);
+
+    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertNotNull(response.getBody());
+    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
   }
 
   private ObjectNode objectNode(Map<String, JsonNode> properties)
@@ -274,6 +342,16 @@ class DataApiIntegrationTest
     objectNode.setAll(properties);
 
     return objectNode;
+  }
+
+  private HttpEntity<?> body(Object body)
+  {
+    return new HttpEntity<>(body, new LinkedMultiValueMap<>());
+  }
+
+  private <T> ArgumentMatcher<Iterable<T>> containsAll(Collection<T> elements)
+  {
+    return iterable -> StreamSupport.stream(iterable.spliterator(), false).allMatch(elements::contains);
   }
 
   private String encode(ObjectNode object) throws IOException
