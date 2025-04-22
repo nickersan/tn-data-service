@@ -336,6 +336,63 @@ class DataApiIntegrationTest
     assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
   }
 
+  @Test
+  void shouldPutWithObject()
+  {
+    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+
+    when(dataRepository.update(data)).thenReturn(data);
+
+    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(data), ObjectNode.class);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(data, response.getBody());
+
+    verify(dataRepository).update(data);
+  }
+
+  @Test
+  void shouldPutWithArray()
+  {
+    List<ObjectNode> data = List.of(
+      objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1"))),
+      objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_NAME, TextNode.valueOf("Data 2")))
+    );
+
+    when(dataRepository.updateAll(anyIterable())).thenReturn(data);
+
+    ResponseEntity<List<ObjectNode>> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(data), TYPE_REFERENCE_OBJECTS);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(data, response.getBody());
+
+    verify(dataRepository).updateAll(argThat(containsAll(data)));
+  }
+
+  @Test
+  void shouldNotPutWithInvalidBody()
+  {
+    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(List.of("INVALID")), ObjectNode.class);
+
+    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertNotNull(response.getBody());
+    assertEquals("Invalid body", response.getBody().get(FIELD_MESSAGE).asText());
+  }
+
+  @Test
+  void shouldNotPutWithRepositoryError()
+  {
+    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+
+    when(dataRepository.update(data)).thenThrow(new InsertException("TESTING"));
+
+    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(data), ObjectNode.class);
+
+    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertNotNull(response.getBody());
+    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
+  }
+
   private ObjectNode objectNode(Map<String, JsonNode> properties)
   {
     ObjectNode objectNode = new ObjectNode(null);

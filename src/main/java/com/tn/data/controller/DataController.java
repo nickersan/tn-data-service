@@ -92,6 +92,24 @@ public class DataController implements DataApi
     else throw new BadRequestException("Invalid body");
   }
 
+  @Override
+  public ResponseEntity<ContainerNode<?>> put(RequestEntity<ContainerNode<?>> request)
+  {
+    if (request.getBody() instanceof ObjectNode) return ResponseEntity.ok(dataRepository.update(objectNode(request.getBody())));
+    else if (request.getBody() instanceof ArrayNode) return ResponseEntity.ok(arrayNode(dataRepository.updateAll(iterable(request.getBody()))));
+    else throw new BadRequestException("Invalid body");
+  }
+
+  @Override
+  public ResponseEntity<Void> delete(RequestEntity<ContainerNode<?>> request)
+  {
+    if (request.getBody() instanceof ObjectNode) dataRepository.delete(objectNode(request.getBody()));
+    else if (request.getBody() instanceof ArrayNode) dataRepository.deleteAll(iterable(request.getBody()));
+    else throw new BadRequestException("Invalid body");
+
+    return ResponseEntity.ok().build();
+  }
+
   @ExceptionHandler({BadRequestException.class, RepositoryException.class})
   ResponseEntity<ObjectNode> badRequest(Exception e)
   {
