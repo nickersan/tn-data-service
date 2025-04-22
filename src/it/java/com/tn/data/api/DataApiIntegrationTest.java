@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,17 +39,21 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
+import com.tn.data.repository.DeleteException;
 import com.tn.data.repository.InsertException;
+import com.tn.data.repository.UpdateException;
 import com.tn.lang.util.Page;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("api-integration-test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class DataApiIntegrationTest
 {
   private static final String FIELD_ID = "id";
@@ -331,7 +336,7 @@ class DataApiIntegrationTest
 
     ResponseEntity<ObjectNode> response = testRestTemplate.postForEntity("/", data, ObjectNode.class);
 
-    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     assertNotNull(response.getBody());
     assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
   }
@@ -384,11 +389,101 @@ class DataApiIntegrationTest
   {
     ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
 
-    when(dataRepository.update(data)).thenThrow(new InsertException("TESTING"));
+    when(dataRepository.update(data)).thenThrow(new UpdateException("TESTING"));
 
     ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(data), ObjectNode.class);
 
-    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+    assertNotNull(response.getBody());
+    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
+  }
+
+  @Test
+  void shouldDeleteWithSimpleKey()
+  {
+    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
+
+    when(keyParser.parse(key.get(FIELD_ID).asText())).thenReturn(key);
+
+    ResponseEntity<Void> response = testRestTemplate.exchange("/" + key.get(FIELD_ID).asText(), HttpMethod.DELETE, null, Void.class);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+
+    verify(dataRepository).delete(key);
+  }
+
+  @Test
+  void shouldDeleteWithSimpleKeys()
+  {
+    ObjectNode key1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
+    ObjectNode key2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2)));
+
+    when(keyParser.parse(key1.get(FIELD_ID).asText())).thenReturn(key1);
+    when(keyParser.parse(key2.get(FIELD_ID).asText())).thenReturn(key2);
+
+    String url = UriComponentsBuilder.fromPath("/")
+      .queryParam("key", List.of(key1.get(FIELD_ID).asText(), key2.get(FIELD_ID).asText()))
+      .encode()
+      .toUriString();
+
+    ResponseEntity<Void> response = testRestTemplate.exchange(url, HttpMethod.DELETE, null, Void.class);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+
+    verify(dataRepository).deleteAll(List.of(key1, key2));
+  }
+
+  @Test
+  void shouldDeleteWithComplexKey() throws Exception
+  {
+    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_ID_2, TextNode.valueOf("A")));
+
+    String encodedKey = encode(key);
+
+    when(keyParser.parse(encodedKey)).thenReturn(key);
+
+    ResponseEntity<Void> response = testRestTemplate.exchange("/" + encodedKey, HttpMethod.DELETE, null, Void.class);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+
+    verify(dataRepository).delete(key);
+  }
+
+  @Test
+  void shouldDeleteWithComplexKeys() throws Exception
+  {
+    ObjectNode key1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_ID_2, TextNode.valueOf("A")));
+    ObjectNode key2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_ID_2, TextNode.valueOf("B")));
+
+    String encodedKey1 = encode(key1);
+    String encodedKey2 = encode(key2);
+
+    when(keyParser.parse(encodedKey1)).thenReturn(key1);
+    when(keyParser.parse(encodedKey2)).thenReturn(key2);
+
+    String url = UriComponentsBuilder.fromPath("/")
+      .queryParam("key", List.of(encodedKey1, encodedKey2))
+      .encode()
+      .toUriString();
+
+    ResponseEntity<ArrayNode> response = testRestTemplate.exchange(url, HttpMethod.DELETE, null, ArrayNode.class);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+
+    verify(dataRepository).deleteAll(List.of(key1, key2));
+  }
+
+  @Test
+  void shouldNotDeleteWithRepositoryError()
+  {
+    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
+
+    when(keyParser.parse(key.get(FIELD_ID).asText())).thenReturn(key);
+    doThrow(new DeleteException("TESTING")).when(dataRepository).delete(key);
+
+    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/1", HttpMethod.DELETE, null, ObjectNode.class);
+
+    assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     assertNotNull(response.getBody());
     assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
   }

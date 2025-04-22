@@ -4,6 +4,7 @@ import static com.tn.lang.Iterables.isNotEmpty;
 import static com.tn.lang.Objects.coalesce;
 import static com.tn.lang.Strings.isNotNullOrWhitespace;
 
+import java.text.ParseException;
 import java.util.Collection;
 import java.util.stream.StreamSupport;
 
@@ -25,7 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.tn.data.api.DataApi;
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
+import com.tn.data.repository.DeleteException;
+import com.tn.data.repository.FindException;
+import com.tn.data.repository.InsertException;
 import com.tn.data.repository.RepositoryException;
+import com.tn.data.repository.UpdateException;
 import com.tn.lang.util.Page;
 
 @Slf4j
@@ -46,7 +51,7 @@ public class DataController implements DataApi
   @Override
   public ResponseEntity<ObjectNode> get(String key)
   {
-    return dataRepository.find(keyParser.parse(key))
+    return dataRepository.find(parseKey(key))
       .map(ResponseEntity::ok)
       .orElse(ResponseEntity.notFound().build());
   }
@@ -101,16 +106,31 @@ public class DataController implements DataApi
   }
 
   @Override
-  public ResponseEntity<Void> delete(RequestEntity<ContainerNode<?>> request)
+  public ResponseEntity<Void> delete(String key)
   {
-    if (request.getBody() instanceof ObjectNode) dataRepository.delete(objectNode(request.getBody()));
-    else if (request.getBody() instanceof ArrayNode) dataRepository.deleteAll(iterable(request.getBody()));
-    else throw new BadRequestException("Invalid body");
-
+    dataRepository.delete(keyParser.parse(key));
     return ResponseEntity.ok().build();
   }
 
-  @ExceptionHandler({BadRequestException.class, RepositoryException.class})
+  @Override
+  public ResponseEntity<Void> delete(Collection<String> keys)
+  {
+    dataRepository.deleteAll(parseKeys(keys));
+    return ResponseEntity.ok().build();
+  }
+
+  @ExceptionHandler({InsertException.class, UpdateException.class, DeleteException.class})
+  ResponseEntity<ObjectNode> internalServerError(RepositoryException e)
+  {
+    log.error("Handling error", e);
+
+    ObjectNode error = new ObjectNode(null);
+    error.set(FIELD_MESSAGE, TextNode.valueOf(e.getMessage()));
+
+    return  ResponseEntity.internalServerError().body(error);
+  }
+
+  @ExceptionHandler({BadRequestException.class, FindException.class, ParseException.class})
   ResponseEntity<ObjectNode> badRequest(Exception e)
   {
     log.error("Handling error", e);
@@ -154,6 +174,11 @@ public class DataController implements DataApi
 
   private Iterable<ObjectNode> parseKeys(Collection<String> keys)
   {
-    return keys.stream().map(keyParser::parse).toList();
+    return keys.stream().map(this::parseKey).toList();
+  }
+
+  private ObjectNode parseKey(String key)
+  {
+    return keyParser.parse(key);
   }
 }

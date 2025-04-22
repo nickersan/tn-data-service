@@ -34,6 +34,9 @@ public interface DataApi
   @PutMapping(consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
   ResponseEntity<ContainerNode<?>> put(RequestEntity<ContainerNode<?>> request);
 
-  @DeleteMapping(consumes = APPLICATION_JSON_VALUE)
-  ResponseEntity<Void> delete(RequestEntity<ContainerNode<?>> request);
+  @DeleteMapping(value = "/{key}")
+  ResponseEntity<Void> delete(@PathVariable("key") String key);
+
+  @DeleteMapping
+  ResponseEntity<Void> delete(@RequestParam(value = "key") Collection<String> keys);
 }
