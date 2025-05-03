@@ -32,7 +32,6 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
@@ -48,7 +47,7 @@ import com.tn.lang.util.Page;
 
 @SpringBootTest(
   webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-  classes = {DataApiIntegrationTest.TestConfiguration.class},
+  classes = DataApiIntegrationTest.TestConfiguration.class,
   properties = "tn.data.value-class=com.tn.data.api.DataApiIntegrationTest.Value"
 )
 @SuppressWarnings("SpringBootApplicationProperties")
@@ -407,7 +406,6 @@ class DataApiIntegrationTest
 
   public record Value(Integer id, String name) {}
 
-  @Configuration
   static class TestConfiguration
   {
     @Bean

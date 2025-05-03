@@ -83,8 +83,14 @@ public class DataController<K, V> implements DataApi
   {
     if (isNotEmpty(keys))
     {
-      if (query != null) return badRequest("Query parameter not allowed with key(s)");
-      if (pageNumber != null || pageSize != null) return badRequest("Pagination not supported with Key(s)");
+      if (query != null)
+      {
+        return badRequest("Query parameter not allowed with key(s)");
+      }
+      if (pageNumber != null || pageSize != null)
+      {
+        return badRequest("Pagination not supported with Key(s)");
+      }
 
       return ResponseEntity.ok(arrayNode(dataRepository.findAll(parseKeys(keys))));
     }
@@ -111,9 +117,18 @@ public class DataController<K, V> implements DataApi
   {
     try
     {
-      if (request.getBody() instanceof ObjectNode) return ResponseEntity.ok(objectNode(dataRepository.insert(value(request.getBody()))));
-      else if (request.getBody() instanceof ArrayNode) return ResponseEntity.ok(arrayNode(dataRepository.insertAll(values(request.getBody()))));
-      else return badRequest("Invalid body");
+      if (request.getBody() instanceof ObjectNode)
+      {
+        return ResponseEntity.ok(objectNode(dataRepository.insert(value(request.getBody()))));
+      }
+      else if (request.getBody() instanceof ArrayNode)
+      {
+        return ResponseEntity.ok(arrayNode(dataRepository.insertAll(values(request.getBody()))));
+      }
+      else
+      {
+        return badRequest("Invalid body");
+      }
     }
     catch (JsonProcessingException e)
     {
@@ -126,9 +141,18 @@ public class DataController<K, V> implements DataApi
   {
     try
     {
-      if (request.getBody() instanceof ObjectNode) return ResponseEntity.ok(objectNode(dataRepository.update(value(request.getBody()))));
-      else if (request.getBody() instanceof ArrayNode) return ResponseEntity.ok(arrayNode(dataRepository.updateAll(values(request.getBody()))));
-      else return badRequest("Invalid body");
+      if (request.getBody() instanceof ObjectNode)
+      {
+        return ResponseEntity.ok(objectNode(dataRepository.update(value(request.getBody()))));
+      }
+      else if (request.getBody() instanceof ArrayNode)
+      {
+        return ResponseEntity.ok(arrayNode(dataRepository.updateAll(values(request.getBody()))));
+      }
+      else
+      {
+        return badRequest("Invalid body");
+      }
     }
     catch (JsonProcessingException e)
     {
@@ -158,7 +182,7 @@ public class DataController<K, V> implements DataApi
     ObjectNode error = new ObjectNode(null);
     error.set(FIELD_MESSAGE, TextNode.valueOf(e.getMessage()));
 
-    return  ResponseEntity.internalServerError().body(error);
+    return ResponseEntity.internalServerError().body(error);
   }
 
   @ExceptionHandler(ClassCastException.class)
@@ -169,7 +193,7 @@ public class DataController<K, V> implements DataApi
     ObjectNode error = new ObjectNode(null);
     error.set(FIELD_MESSAGE, TextNode.valueOf("Invalid body"));
 
-    return  ResponseEntity.badRequest().body(error);
+    return ResponseEntity.badRequest().body(error);
   }
 
   private ContainerNode<?> arrayNode(Collection<V> values)
@@ -184,7 +208,8 @@ public class DataController<K, V> implements DataApi
 
   private V value(JsonNode node) throws JsonProcessingException
   {
-    return objectMapper.treeToValue(node, valueClass);
+    //noinspection unchecked
+    return ObjectNode.class.equals(valueClass) ? (V)node : objectMapper.treeToValue(node, valueClass);
   }
 
   private Iterable<V> values(JsonNode array) throws JsonProcessingException
@@ -195,8 +220,14 @@ public class DataController<K, V> implements DataApi
     }
     catch (WrappedException e)
     {
-      if (e.getCause() instanceof JsonProcessingException) throw (JsonProcessingException)e.getCause();
-      else throw (RuntimeException)e.getCause();
+      if (e.getCause() instanceof JsonProcessingException)
+      {
+        throw (JsonProcessingException)e.getCause();
+      }
+      else
+      {
+        throw (RuntimeException)e.getCause();
+      }
     }
   }
 
@@ -220,6 +251,6 @@ public class DataController<K, V> implements DataApi
     ObjectNode error = new ObjectNode(null);
     error.set(FIELD_MESSAGE, TextNode.valueOf(message));
 
-    return  ResponseEntity.badRequest().body(error);
+    return ResponseEntity.badRequest().body(error);
   }
 }
