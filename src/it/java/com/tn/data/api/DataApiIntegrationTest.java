@@ -39,7 +39,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 
-import com.tn.data.autoconfig.ControllerAutoConfiguration;
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
 import com.tn.data.repository.DeleteException;
@@ -49,7 +48,7 @@ import com.tn.lang.util.Page;
 
 @SpringBootTest(
   webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-  classes = {DataApiIntegrationTest.TestConfiguration.class, ControllerAutoConfiguration.class},
+  classes = {DataApiIntegrationTest.TestConfiguration.class},
   properties = "tn.data.value-class=com.tn.data.api.DataApiIntegrationTest.Value"
 )
 @SuppressWarnings("SpringBootApplicationProperties")
