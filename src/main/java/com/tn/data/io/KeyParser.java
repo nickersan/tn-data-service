@@ -1,8 +1,6 @@
 package com.tn.data.io;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
-public interface KeyParser
+public interface KeyParser<K>
 {
-  ObjectNode parse(String key) throws InvalidKeyException;
+  K parse(String key) throws InvalidKeyException;
 }

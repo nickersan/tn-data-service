@@ -4,8 +4,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 import java.util.Collection;
 
-import com.fasterxml.jackson.databind.node.ContainerNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,10 +17,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface DataApi
 {
   @GetMapping(value = "/{key}", produces = APPLICATION_JSON_VALUE)
-  ResponseEntity<ObjectNode> get(@PathVariable("key") String key);
+  ResponseEntity<? extends JsonNode> get(@PathVariable("key") String key);
 
   @GetMapping(produces = APPLICATION_JSON_VALUE)
-  ResponseEntity<ContainerNode<?>> get(
+  ResponseEntity<? extends JsonNode> get(
     @RequestParam(value = "key") Collection<String> keys,
     @RequestParam(value = "q", required = false) String query,
     @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
@@ -29,10 +28,10 @@ public interface DataApi
   );
 
   @PostMapping(consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
-  ResponseEntity<ContainerNode<?>> post(RequestEntity<ContainerNode<?>> request);
+  ResponseEntity<? extends JsonNode> post(RequestEntity<JsonNode> request);
 
   @PutMapping(consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
-  ResponseEntity<ContainerNode<?>> put(RequestEntity<ContainerNode<?>> request);
+  ResponseEntity<? extends JsonNode> put(RequestEntity<JsonNode> request);
 
   @DeleteMapping(value = "/{key}")
   ResponseEntity<Void> delete(@PathVariable("key") String key);

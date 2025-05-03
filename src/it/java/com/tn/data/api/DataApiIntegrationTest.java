@@ -1,49 +1,45 @@
 package com.tn.data.api;
 
+import static java.lang.String.format;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyIterable;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.HttpMethod.DELETE;
+import static org.springframework.http.HttpMethod.GET;
+import static org.springframework.http.HttpMethod.POST;
+import static org.springframework.http.HttpMethod.PUT;
 
 import static com.tn.data.controller.DataController.DEFAULT_PAGE_NUMBER;
 import static com.tn.data.controller.DataController.DEFAULT_PAGE_SIZE;
 import static com.tn.data.controller.DataController.FIELD_MESSAGE;
 
-import java.io.IOException;
-import java.util.Base64;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.StreamSupport;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.ArgumentMatcher;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.web.util.UriComponentsBuilder;
 
+import com.tn.data.autoconfig.ControllerAutoConfiguration;
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
 import com.tn.data.repository.DeleteException;
@@ -51,152 +47,115 @@ import com.tn.data.repository.InsertException;
 import com.tn.data.repository.UpdateException;
 import com.tn.lang.util.Page;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("api-integration-test")
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@SpringBootTest(
+  webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+  classes = {DataApiIntegrationTest.TestConfiguration.class, ControllerAutoConfiguration.class},
+  properties = "tn.data.value-class=com.tn.data.api.DataApiIntegrationTest.Value"
+)
+@SuppressWarnings("SpringBootApplicationProperties")
+@EnableAutoConfiguration
 class DataApiIntegrationTest
 {
-  private static final String FIELD_ID = "id";
-  private static final String FIELD_ID_2 = "id2";
-  private static final String FIELD_NAME = "name";
-  private static final ParameterizedTypeReference<List<ObjectNode>> TYPE_REFERENCE_OBJECTS = new ParameterizedTypeReference<>() {};
-  private static final ParameterizedTypeReference<Page<ObjectNode>> TYPE_REFERENCE_PAGE = new ParameterizedTypeReference<>() {};
+  private static final ParameterizedTypeReference<List<Value>> TYPE_REFERENCE_LIST = new ParameterizedTypeReference<>() {};
+  private static final ParameterizedTypeReference<Page<Value>> TYPE_REFERENCE_PAGE = new ParameterizedTypeReference<>() {};
 
   @Autowired
   TestRestTemplate testRestTemplate;
 
   @Autowired
-  ObjectMapper objectMapper;
+  DataRepository<Integer, Value> dataRepository;
 
   @Autowired
-  DataRepository dataRepository;
+  KeyParser<Integer> keyParser;
 
-  @Autowired
-  KeyParser keyParser;
-
-  @Test
-  void shouldGetWithSimpleKey()
+  @BeforeEach
+  void resetMocks()
   {
-    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
-
-    when(keyParser.parse(key.get(FIELD_ID).asText())).thenReturn(key);
-    when(dataRepository.find(key)).thenReturn(Optional.of(data));
-
-    ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity("/" + key.get(FIELD_ID).asText(), ObjectNode.class);
-
-    assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(data, response.getBody());
+    reset(dataRepository, keyParser);
   }
 
   @Test
   void shouldGet()
   {
-    ObjectNode data1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
-    ObjectNode data2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_NAME, TextNode.valueOf("Data 2")));
+    Value value1 = new Value(1, "ONE");
+    Value value2 = new Value(2, "TWO");
 
-    when(dataRepository.findAll()).thenReturn(List.of(data1, data2));
+    when(dataRepository.findAll()).thenReturn(List.of(value1, value2));
 
-    ResponseEntity<ArrayNode> response = testRestTemplate.getForEntity("/", ArrayNode.class);
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange("/", GET, null, TYPE_REFERENCE_LIST);
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(new ArrayNode(null, List.of(data1, data2)), response.getBody());
+    assertEquals(List.of(value1, value2), response.getBody());
   }
 
   @Test
-  void shouldGetWithSimpleKeys()
+  void shouldGetWithKey()
   {
-    ObjectNode key1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
-    ObjectNode key2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2)));
-    ObjectNode data1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
-    ObjectNode data2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_NAME, TextNode.valueOf("Data 2")));
+    Value value = new Value(123, "TEST");
 
-    when(keyParser.parse(key1.get(FIELD_ID).asText())).thenReturn(key1);
-    when(keyParser.parse(key2.get(FIELD_ID).asText())).thenReturn(key2);
-    when(dataRepository.findAll(List.of(key1, key2))).thenReturn(List.of(data1, data2));
+    when(keyParser.parse(value.id().toString())).thenReturn(value.id());
+    when(dataRepository.find(value.id())).thenReturn(Optional.of(value));
 
-    String url = UriComponentsBuilder.fromPath("/")
-      .queryParam("key", List.of(key1.get(FIELD_ID).asText(), key2.get(FIELD_ID).asText()))
-      .encode()
-      .toUriString();
-
-    ResponseEntity<ArrayNode> response = testRestTemplate.getForEntity(url, ArrayNode.class);
+    ResponseEntity<Value> response = testRestTemplate.getForEntity("/" + value.id(), Value.class);
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(new ArrayNode(null, List.of(data1, data2)), response.getBody());
+    assertEquals(value, response.getBody());
   }
 
   @Test
-  void shouldGetWithComplexKey() throws Exception
+  void shouldGetWithKeys()
   {
-    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_ID_2, TextNode.valueOf("A")));
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_ID_2, TextNode.valueOf("A"), FIELD_NAME, TextNode.valueOf("Data 1")));
+    Value value1 = new Value(1, "ONE");
+    Value value2 = new Value(2, "TWO");
 
-    String encodedKey = encode(key);
+    when(keyParser.parse(value1.id().toString())).thenReturn(value1.id());
+    when(keyParser.parse(value2.id().toString())).thenReturn(value2.id());
+    when(dataRepository.findAll(List.of(value1.id(), value2.id()))).thenReturn(List.of(value1, value2));
 
-    when(keyParser.parse(encodedKey)).thenReturn(key);
-    when(dataRepository.find(key)).thenReturn(Optional.of(data));
-
-    ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity("/" + encodedKey, ObjectNode.class);
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange(
+      format("/?key=%s&key=%s", value1.id(), value2.id()),
+      GET,
+      null,
+      TYPE_REFERENCE_LIST
+    );
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(data, response.getBody());
-  }
-
-  @Test
-  void shouldGetWithComplexKeys() throws Exception
-  {
-    ObjectNode key1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_ID_2, TextNode.valueOf("A")));
-    ObjectNode key2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_ID_2, TextNode.valueOf("B")));
-    ObjectNode data1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_ID_2, TextNode.valueOf("A"), FIELD_NAME, TextNode.valueOf("Data 1")));
-    ObjectNode data2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_ID_2, TextNode.valueOf("B"), FIELD_NAME, TextNode.valueOf("Data 2")));
-
-    String encodedKey1 = encode(key1);
-    String encodedKey2 = encode(key2);
-
-    when(keyParser.parse(encodedKey1)).thenReturn(key1);
-    when(keyParser.parse(encodedKey2)).thenReturn(key2);
-    when(dataRepository.findAll(List.of(key1, key2))).thenReturn(List.of(data1, data2));
-
-    String url = UriComponentsBuilder.fromPath("/")
-      .queryParam("key", List.of(encodedKey1, encodedKey2))
-      .encode()
-      .toUriString();
-
-    ResponseEntity<ArrayNode> response = testRestTemplate.getForEntity(url, ArrayNode.class);
-
-    assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(new ArrayNode(null, List.of(data1, data2)), response.getBody());
+    assertEquals(List.of(value1, value2), response.getBody());
   }
 
   @Test
   void shouldGetWithQuery()
   {
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
-    String query = "name=Data 1";
+    Value value = new Value(123, "TEST");
+    String query = "name=" + value.name();
 
-    when(dataRepository.findFor(query)).thenReturn(List.of(data));
+    when(dataRepository.findFor(query)).thenReturn(List.of(value));
 
-    ResponseEntity<ArrayNode> response = testRestTemplate.getForEntity("/?q=" + query, ArrayNode.class);
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange(
+      "/?q=" + query,
+      GET,
+      null,
+      TYPE_REFERENCE_LIST
+    );
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(new ArrayNode(null, List.of(data)), response.getBody());
+    assertEquals(List.of(value), response.getBody());
   }
 
   @Test
   void shouldGetWithQueryAndPageNumber()
   {
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
-    String query = "name=Data 1";
+    Value value = new Value(123, "TEST");
+    String query = "name=" + value.name();
     int pageNumber = 1;
 
-    Page<ObjectNode> page = new Page<>(List.of(data), pageNumber, 2, DEFAULT_PAGE_SIZE + 1);
+    Page<Value> page = new Page<>(List.of(value), pageNumber, 2, DEFAULT_PAGE_SIZE + 1);
 
     when(dataRepository.findFor(query, pageNumber, DEFAULT_PAGE_SIZE)).thenReturn(page);
 
-    ResponseEntity<Page<ObjectNode>> response = testRestTemplate.exchange(
+    ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
       "/?q=" + query + "&pageNumber=" + pageNumber,
-      HttpMethod.GET,
+      GET,
       null,
       TYPE_REFERENCE_PAGE
     );
@@ -208,17 +167,17 @@ class DataApiIntegrationTest
   @Test
   void shouldGetWithQueryAndPageSize()
   {
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
-    String query = "name=Data 1";
+    Value value = new Value(123, "TEST");
+    String query = "name=" + value.name();
     int pageSize = 10;
 
-    Page<ObjectNode> page = new Page<>(List.of(data), DEFAULT_PAGE_NUMBER, 2, pageSize + 1);
+    Page<Value> page = new Page<>(List.of(value), DEFAULT_PAGE_NUMBER, 2, pageSize + 1);
 
     when(dataRepository.findFor(query, DEFAULT_PAGE_NUMBER, pageSize)).thenReturn(page);
 
-    ResponseEntity<Page<ObjectNode>> response = testRestTemplate.exchange(
+    ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
       "/?q=" + query + "&pageSize=" + pageSize,
-      HttpMethod.GET,
+      GET,
       null,
       TYPE_REFERENCE_PAGE
     );
@@ -230,18 +189,18 @@ class DataApiIntegrationTest
   @Test
   void shouldGetWithQueryAndPageNumberAndPageSize()
   {
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
-    String query = "name=Data 1";
+    Value value = new Value(123, "TEST");
+    String query = "name=" +  value.name();
     int pageNumber = 1;
     int pageSize = 10;
 
-    Page<ObjectNode> page = new Page<>(List.of(data), pageNumber, 2, pageSize + 1);
+    Page<Value> page = new Page<>(List.of(value), pageNumber, 2, pageSize + 1);
 
     when(dataRepository.findFor(query, pageNumber, pageSize)).thenReturn(page);
 
-    ResponseEntity<Page<ObjectNode>> response = testRestTemplate.exchange(
+    ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
       "/?q=" + query + "&pageNumber=" + pageNumber + "&pageSize=" + pageSize,
-      HttpMethod.GET,
+      GET,
       null,
       TYPE_REFERENCE_PAGE
     );
@@ -253,12 +212,12 @@ class DataApiIntegrationTest
   @Test
   void shouldNotGetForUnknownKey()
   {
-    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
+    Integer key = 123;
 
-    when(keyParser.parse(key.get(FIELD_ID).asText())).thenReturn(key);
+    when(keyParser.parse(key.toString())).thenReturn(key);
     when(dataRepository.find(key)).thenReturn(Optional.empty());
 
-    ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity("/" + key.get(FIELD_ID).asText(), ObjectNode.class);
+    ResponseEntity<Value> response = testRestTemplate.getForEntity("/" + key, Value.class);
 
     assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.NOT_FOUND));
   }
@@ -287,34 +246,31 @@ class DataApiIntegrationTest
   @Test
   void shouldPostWithObject()
   {
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+    Value value = new Value(123, "TEST");
 
-    when(dataRepository.insert(data)).thenReturn(data);
+    when(dataRepository.insert(value)).thenReturn(value);
 
-    ResponseEntity<ObjectNode> response = testRestTemplate.postForEntity("/", data, ObjectNode.class);
+    ResponseEntity<Value> response = testRestTemplate.postForEntity("/", value, Value.class);
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(data, response.getBody());
+    assertEquals(value, response.getBody());
 
-    verify(dataRepository).insert(data);
+    verify(dataRepository).insert(value);
   }
 
   @Test
   void shouldPostWithArray()
   {
-    List<ObjectNode> data = List.of(
-      objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1"))),
-      objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_NAME, TextNode.valueOf("Data 2")))
-    );
+    List<Value> values = List.of(new Value(1, "ONE"), new Value(2, "TWO"));
 
-    when(dataRepository.insertAll(anyIterable())).thenReturn(data);
+    when(dataRepository.insertAll(values)).thenReturn(values);
 
-    ResponseEntity<List<ObjectNode>> response = testRestTemplate.exchange("/", HttpMethod.POST, body(data), TYPE_REFERENCE_OBJECTS);
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange("/", POST, body(values), TYPE_REFERENCE_LIST);
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(data, response.getBody());
+    assertEquals(values, response.getBody());
 
-    verify(dataRepository).insertAll(argThat(containsAll(data)));
+    verify(dataRepository).insertAll(values);
   }
 
   @Test
@@ -330,11 +286,11 @@ class DataApiIntegrationTest
   @Test
   void shouldNotPostWithRepositoryError()
   {
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+    Value value = new Value(123, "TEST");
 
-    when(dataRepository.insert(data)).thenThrow(new InsertException("TESTING"));
+    when(dataRepository.insert(value)).thenThrow(new InsertException("TESTING"));
 
-    ResponseEntity<ObjectNode> response = testRestTemplate.postForEntity("/", data, ObjectNode.class);
+    ResponseEntity<ObjectNode> response = testRestTemplate.postForEntity("/", value, ObjectNode.class);
 
     assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     assertNotNull(response.getBody());
@@ -344,40 +300,37 @@ class DataApiIntegrationTest
   @Test
   void shouldPutWithObject()
   {
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+    Value value = new Value(123, "TEST");
 
-    when(dataRepository.update(data)).thenReturn(data);
+    when(dataRepository.update(value)).thenReturn(value);
 
-    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(data), ObjectNode.class);
+    ResponseEntity<Value> response = testRestTemplate.exchange("/", PUT, body(value), Value.class);
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(data, response.getBody());
+    assertEquals(value, response.getBody());
 
-    verify(dataRepository).update(data);
+    verify(dataRepository).update(value);
   }
 
   @Test
   void shouldPutWithArray()
   {
-    List<ObjectNode> data = List.of(
-      objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1"))),
-      objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_NAME, TextNode.valueOf("Data 2")))
-    );
+    List<Value> values = List.of(new Value(1, "ONE"), new Value(2, "TWO"));
 
-    when(dataRepository.updateAll(anyIterable())).thenReturn(data);
+    when(dataRepository.updateAll(values)).thenReturn(values);
 
-    ResponseEntity<List<ObjectNode>> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(data), TYPE_REFERENCE_OBJECTS);
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange("/", PUT, body(values), TYPE_REFERENCE_LIST);
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(data, response.getBody());
+    assertEquals(values, response.getBody());
 
-    verify(dataRepository).updateAll(argThat(containsAll(data)));
+    verify(dataRepository).updateAll(values);
   }
 
   @Test
   void shouldNotPutWithInvalidBody()
   {
-    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(List.of("INVALID")), ObjectNode.class);
+    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", PUT, body(List.of("INVALID")), ObjectNode.class);
 
     assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     assertNotNull(response.getBody());
@@ -387,11 +340,11 @@ class DataApiIntegrationTest
   @Test
   void shouldNotPutWithRepositoryError()
   {
-    ObjectNode data = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_NAME, TextNode.valueOf("Data 1")));
+    Value value = new Value(123, "TEST");
 
-    when(dataRepository.update(data)).thenThrow(new UpdateException("TESTING"));
+    when(dataRepository.update(value)).thenThrow(new UpdateException("TESTING"));
 
-    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", HttpMethod.PUT, body(data), ObjectNode.class);
+    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", PUT, body(value), ObjectNode.class);
 
     assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     assertNotNull(response.getBody());
@@ -399,13 +352,13 @@ class DataApiIntegrationTest
   }
 
   @Test
-  void shouldDeleteWithSimpleKey()
+  void shouldDeleteWithKey()
   {
-    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
+    int key = 123;
 
-    when(keyParser.parse(key.get(FIELD_ID).asText())).thenReturn(key);
+    when(keyParser.parse(Integer.toString(key))).thenReturn(key);
 
-    ResponseEntity<Void> response = testRestTemplate.exchange("/" + key.get(FIELD_ID).asText(), HttpMethod.DELETE, null, Void.class);
+    ResponseEntity<Void> response = testRestTemplate.exchange("/" + key, DELETE, null, Void.class);
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
 
@@ -413,60 +366,20 @@ class DataApiIntegrationTest
   }
 
   @Test
-  void shouldDeleteWithSimpleKeys()
+  void shouldDeleteWithKeys()
   {
-    ObjectNode key1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
-    ObjectNode key2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2)));
+    int key1 = 123;
+    int key2 = 234;
 
-    when(keyParser.parse(key1.get(FIELD_ID).asText())).thenReturn(key1);
-    when(keyParser.parse(key2.get(FIELD_ID).asText())).thenReturn(key2);
+    when(keyParser.parse(Integer.toString(key1))).thenReturn(key1);
+    when(keyParser.parse(Integer.toString(key2))).thenReturn(key2);
 
-    String url = UriComponentsBuilder.fromPath("/")
-      .queryParam("key", List.of(key1.get(FIELD_ID).asText(), key2.get(FIELD_ID).asText()))
-      .encode()
-      .toUriString();
-
-    ResponseEntity<Void> response = testRestTemplate.exchange(url, HttpMethod.DELETE, null, Void.class);
-
-    assertTrue(response.getStatusCode().is2xxSuccessful());
-
-    verify(dataRepository).deleteAll(List.of(key1, key2));
-  }
-
-  @Test
-  void shouldDeleteWithComplexKey() throws Exception
-  {
-    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_ID_2, TextNode.valueOf("A")));
-
-    String encodedKey = encode(key);
-
-    when(keyParser.parse(encodedKey)).thenReturn(key);
-
-    ResponseEntity<Void> response = testRestTemplate.exchange("/" + encodedKey, HttpMethod.DELETE, null, Void.class);
-
-    assertTrue(response.getStatusCode().is2xxSuccessful());
-
-    verify(dataRepository).delete(key);
-  }
-
-  @Test
-  void shouldDeleteWithComplexKeys() throws Exception
-  {
-    ObjectNode key1 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1), FIELD_ID_2, TextNode.valueOf("A")));
-    ObjectNode key2 = objectNode(Map.of(FIELD_ID, IntNode.valueOf(2), FIELD_ID_2, TextNode.valueOf("B")));
-
-    String encodedKey1 = encode(key1);
-    String encodedKey2 = encode(key2);
-
-    when(keyParser.parse(encodedKey1)).thenReturn(key1);
-    when(keyParser.parse(encodedKey2)).thenReturn(key2);
-
-    String url = UriComponentsBuilder.fromPath("/")
-      .queryParam("key", List.of(encodedKey1, encodedKey2))
-      .encode()
-      .toUriString();
-
-    ResponseEntity<ArrayNode> response = testRestTemplate.exchange(url, HttpMethod.DELETE, null, ArrayNode.class);
+    ResponseEntity<Void> response = testRestTemplate.exchange(
+      format("/?key=%s&key=%s", key1, key2),
+      DELETE,
+      null,
+      Void.class
+    );
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
 
@@ -476,24 +389,16 @@ class DataApiIntegrationTest
   @Test
   void shouldNotDeleteWithRepositoryError()
   {
-    ObjectNode key = objectNode(Map.of(FIELD_ID, IntNode.valueOf(1)));
+    int key = 123;
 
-    when(keyParser.parse(key.get(FIELD_ID).asText())).thenReturn(key);
+    when(keyParser.parse(Integer.toString(key))).thenReturn(key);
     doThrow(new DeleteException("TESTING")).when(dataRepository).delete(key);
 
-    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/1", HttpMethod.DELETE, null, ObjectNode.class);
+    ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/" + key, DELETE, null, ObjectNode.class);
 
     assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     assertNotNull(response.getBody());
     assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
-  }
-
-  private ObjectNode objectNode(Map<String, JsonNode> properties)
-  {
-    ObjectNode objectNode = new ObjectNode(null);
-    objectNode.setAll(properties);
-
-    return objectNode;
   }
 
   private HttpEntity<?> body(Object body)
@@ -501,13 +406,24 @@ class DataApiIntegrationTest
     return new HttpEntity<>(body, new LinkedMultiValueMap<>());
   }
 
-  private <T> ArgumentMatcher<Iterable<T>> containsAll(Collection<T> elements)
-  {
-    return iterable -> StreamSupport.stream(iterable.spliterator(), false).allMatch(elements::contains);
-  }
+  public record Value(Integer id, String name) {}
 
-  private String encode(ObjectNode object) throws IOException
+  @Configuration
+  static class TestConfiguration
   {
-    return Base64.getEncoder().encodeToString(objectMapper.writeValueAsBytes(object));
+    @Bean
+    DataRepository<Integer, Value> dataRepository()
+    {
+      //noinspection unchecked
+      return mock(DataRepository.class);
+    }
+
+    @Bean
+    KeyParser<Integer> keyParser()
+    {
+      //noinspection unchecked
+      return mock(KeyParser.class);
+    }
   }
 }
+

@@ -3,19 +3,22 @@ package com.tn.data.controller;
 import static com.tn.lang.Iterables.isNotEmpty;
 import static com.tn.lang.Objects.coalesce;
 import static com.tn.lang.Strings.isNotNullOrWhitespace;
+import static com.tn.lang.util.function.Lambdas.wrapFunction;
 
-import java.text.ParseException;
 import java.util.Collection;
 import java.util.stream.StreamSupport;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ContainerNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
@@ -27,37 +30,51 @@ import com.tn.data.api.DataApi;
 import com.tn.data.io.KeyParser;
 import com.tn.data.repository.DataRepository;
 import com.tn.data.repository.DeleteException;
-import com.tn.data.repository.FindException;
 import com.tn.data.repository.InsertException;
 import com.tn.data.repository.RepositoryException;
 import com.tn.data.repository.UpdateException;
 import com.tn.lang.util.Page;
+import com.tn.lang.util.function.WrappedException;
 
 @Slf4j
-@RequiredArgsConstructor
 @RestController
 @ConditionalOnWebApplication
 @ConditionalOnBean({DataRepository.class, KeyParser.class})
-public class DataController implements DataApi
+@ConditionalOnProperty("tn.data.value-class")
+public class DataController<K, V> implements DataApi
 {
   public static final int DEFAULT_PAGE_NUMBER = 0;
   public static final int DEFAULT_PAGE_SIZE = 100;
   public static final String FIELD_MESSAGE = "message";
 
-  private final DataRepository dataRepository;
-  private final KeyParser keyParser;
+  private final DataRepository<K, V> dataRepository;
+  private final KeyParser<K> keyParser;
   private final ObjectMapper objectMapper;
+  private final Class<V> valueClass;
+
+  public DataController(
+    DataRepository<K, V> dataRepository,
+    KeyParser<K> keyParser,
+    ObjectMapper objectMapper,
+    @Value("${tn.data.value-class}") Class<V> valueClass
+  )
+  {
+    this.dataRepository = dataRepository;
+    this.keyParser = keyParser;
+    this.objectMapper = objectMapper;
+    this.valueClass = valueClass;
+  }
 
   @Override
-  public ResponseEntity<ObjectNode> get(String key)
+  public ResponseEntity<? extends JsonNode> get(String key)
   {
     return dataRepository.find(parseKey(key))
-      .map(ResponseEntity::ok)
+      .map(value -> ResponseEntity.ok(objectNode(value)))
       .orElse(ResponseEntity.notFound().build());
   }
 
   @Override
-  public ResponseEntity<ContainerNode<?>> get(
+  public ResponseEntity<? extends JsonNode> get(
     @RequestParam(value = "key", required = false) Collection<String> keys,
     @RequestParam(value = "q", required = false) String query,
     @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
@@ -66,8 +83,8 @@ public class DataController implements DataApi
   {
     if (isNotEmpty(keys))
     {
-      if (query != null) throw new BadRequestException("Query parameter not allowed with key(s)");
-      if (pageNumber != null || pageSize != null) throw new BadRequestException("Pagination not supported with Key(s)");
+      if (query != null) return badRequest("Query parameter not allowed with key(s)");
+      if (pageNumber != null || pageSize != null) return badRequest("Pagination not supported with Key(s)");
 
       return ResponseEntity.ok(arrayNode(dataRepository.findAll(parseKeys(keys))));
     }
@@ -90,19 +107,33 @@ public class DataController implements DataApi
   }
 
   @Override
-  public ResponseEntity<ContainerNode<?>> post(RequestEntity<ContainerNode<?>> request)
+  public ResponseEntity<? extends JsonNode> post(RequestEntity<JsonNode> request)
   {
-    if (request.getBody() instanceof ObjectNode) return ResponseEntity.ok(dataRepository.insert(objectNode(request.getBody())));
-    else if (request.getBody() instanceof ArrayNode) return ResponseEntity.ok(arrayNode(dataRepository.insertAll(iterable(request.getBody()))));
-    else throw new BadRequestException("Invalid body");
+    try
+    {
+      if (request.getBody() instanceof ObjectNode) return ResponseEntity.ok(objectNode(dataRepository.insert(value(request.getBody()))));
+      else if (request.getBody() instanceof ArrayNode) return ResponseEntity.ok(arrayNode(dataRepository.insertAll(values(request.getBody()))));
+      else return badRequest("Invalid body");
+    }
+    catch (JsonProcessingException e)
+    {
+      return badRequest("Invalid body");
+    }
   }
 
   @Override
-  public ResponseEntity<ContainerNode<?>> put(RequestEntity<ContainerNode<?>> request)
+  public ResponseEntity<? extends JsonNode> put(RequestEntity<JsonNode> request)
   {
-    if (request.getBody() instanceof ObjectNode) return ResponseEntity.ok(dataRepository.update(objectNode(request.getBody())));
-    else if (request.getBody() instanceof ArrayNode) return ResponseEntity.ok(arrayNode(dataRepository.updateAll(iterable(request.getBody()))));
-    else throw new BadRequestException("Invalid body");
+    try
+    {
+      if (request.getBody() instanceof ObjectNode) return ResponseEntity.ok(objectNode(dataRepository.update(value(request.getBody()))));
+      else if (request.getBody() instanceof ArrayNode) return ResponseEntity.ok(arrayNode(dataRepository.updateAll(values(request.getBody()))));
+      else return badRequest("Invalid body");
+    }
+    catch (JsonProcessingException e)
+    {
+      return badRequest("Invalid body");
+    }
   }
 
   @Override
@@ -130,17 +161,6 @@ public class DataController implements DataApi
     return  ResponseEntity.internalServerError().body(error);
   }
 
-  @ExceptionHandler({BadRequestException.class, FindException.class, ParseException.class})
-  ResponseEntity<ObjectNode> badRequest(Exception e)
-  {
-    log.error("Handling error", e);
-
-    ObjectNode error = new ObjectNode(null);
-    error.set(FIELD_MESSAGE, TextNode.valueOf(e.getMessage()));
-
-    return  ResponseEntity.badRequest().body(error);
-  }
-
   @ExceptionHandler(ClassCastException.class)
   ResponseEntity<ObjectNode> classCast(ClassCastException e)
   {
@@ -152,33 +172,54 @@ public class DataController implements DataApi
     return  ResponseEntity.badRequest().body(error);
   }
 
-  private ContainerNode<?> arrayNode(Collection<ObjectNode> objects)
+  private ContainerNode<?> arrayNode(Collection<V> values)
   {
-    return objectMapper.createArrayNode().addAll(objects);
+    return objectMapper.createArrayNode().addAll(values.stream().map(this::objectNode).toList());
   }
 
-  private ObjectNode objectNode(ContainerNode<?> node)
+  private ObjectNode objectNode(V value)
   {
-    return (ObjectNode)node;
+    return value instanceof ObjectNode ? (ObjectNode)value : objectMapper.valueToTree(value);
   }
 
-  private ContainerNode<?> objectNode(Page<ObjectNode> page)
+  private V value(JsonNode node) throws JsonProcessingException
+  {
+    return objectMapper.treeToValue(node, valueClass);
+  }
+
+  private Iterable<V> values(JsonNode array) throws JsonProcessingException
+  {
+    try
+    {
+      return StreamSupport.stream(array.spliterator(), false).map(wrapFunction(this::value)).toList();
+    }
+    catch (WrappedException e)
+    {
+      if (e.getCause() instanceof JsonProcessingException) throw (JsonProcessingException)e.getCause();
+      else throw (RuntimeException)e.getCause();
+    }
+  }
+
+  private ContainerNode<?> objectNode(Page<V> page)
   {
     return objectMapper.valueToTree(page);
   }
 
-  private Iterable<ObjectNode> iterable(ContainerNode<?> array)
-  {
-    return StreamSupport.stream(array.spliterator(), false).map(ObjectNode.class::cast).toList();
-  }
-
-  private Iterable<ObjectNode> parseKeys(Collection<String> keys)
+  private Iterable<K> parseKeys(Collection<String> keys)
   {
     return keys.stream().map(this::parseKey).toList();
   }
 
-  private ObjectNode parseKey(String key)
+  private K parseKey(String key)
   {
     return keyParser.parse(key);
+  }
+
+  ResponseEntity<ObjectNode> badRequest(String message)
+  {
+    ObjectNode error = new ObjectNode(null);
+    error.set(FIELD_MESSAGE, TextNode.valueOf(message));
+
+    return  ResponseEntity.badRequest().body(error);
   }
 }
