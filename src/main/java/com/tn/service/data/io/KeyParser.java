@@ -1,4 +1,4 @@
-package com.tn.data.io;
+package com.tn.service.data.io;
 
 public interface KeyParser<K>
 {

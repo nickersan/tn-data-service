@@ -1,4 +1,4 @@
-package com.tn.data.repository;
+package com.tn.service.data.repository;
 
 import java.util.Collection;
 import java.util.List;

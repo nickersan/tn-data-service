@@ -1,4 +1,4 @@
-package com.tn.data.repository;
+package com.tn.service.data.repository;
 
 public class DeleteException extends RepositoryException
 {

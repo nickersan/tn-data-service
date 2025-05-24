@@ -1,4 +1,4 @@
-package com.tn.data.api;
+package com.tn.service.data.api;
 
 import static java.lang.String.format;
 
@@ -15,9 +15,9 @@ import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.http.HttpMethod.PUT;
 
-import static com.tn.data.controller.DataController.DEFAULT_PAGE_NUMBER;
-import static com.tn.data.controller.DataController.DEFAULT_PAGE_SIZE;
-import static com.tn.data.controller.DataController.FIELD_MESSAGE;
+import static com.tn.service.data.controller.DataController.DEFAULT_PAGE_NUMBER;
+import static com.tn.service.data.controller.DataController.DEFAULT_PAGE_SIZE;
+import static com.tn.service.data.controller.DataController.FIELD_MESSAGE;
 
 import java.util.List;
 import java.util.Optional;
@@ -38,17 +38,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 
-import com.tn.data.io.KeyParser;
-import com.tn.data.repository.DataRepository;
-import com.tn.data.repository.DeleteException;
-import com.tn.data.repository.InsertException;
-import com.tn.data.repository.UpdateException;
 import com.tn.lang.util.Page;
+import com.tn.service.data.io.KeyParser;
+import com.tn.service.data.repository.DataRepository;
+import com.tn.service.data.repository.DeleteException;
+import com.tn.service.data.repository.InsertException;
+import com.tn.service.data.repository.UpdateException;
 
 @SpringBootTest(
   webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
   classes = DataApiIntegrationTest.TestConfiguration.class,
-  properties = "tn.data.value-class=com.tn.data.api.DataApiIntegrationTest.Value"
+  properties = "tn.data.value-class=com.tn.service.data.api.DataApiIntegrationTest.Value"
 )
 @SuppressWarnings("SpringBootApplicationProperties")
 @EnableAutoConfiguration
