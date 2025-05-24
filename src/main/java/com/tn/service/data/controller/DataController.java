@@ -130,7 +130,7 @@ public class DataController<K, V> implements DataApi
         return badRequest("Invalid body");
       }
     }
-    catch (JsonProcessingException e)
+    catch (JsonProcessingException | ClassCastException e)
     {
       return badRequest("Invalid body");
     }
@@ -154,7 +154,7 @@ public class DataController<K, V> implements DataApi
         return badRequest("Invalid body");
       }
     }
-    catch (JsonProcessingException e)
+    catch (JsonProcessingException | ClassCastException e)
     {
       return badRequest("Invalid body");
     }
@@ -208,8 +208,7 @@ public class DataController<K, V> implements DataApi
 
   private V value(JsonNode node) throws JsonProcessingException
   {
-    //noinspection unchecked
-    return ObjectNode.class.equals(valueClass) ? (V)node : objectMapper.treeToValue(node, valueClass);
+    return ObjectNode.class.equals(valueClass) ? valueClass.cast(node) : objectMapper.treeToValue(node, valueClass);
   }
 
   private Iterable<V> values(JsonNode array) throws JsonProcessingException
