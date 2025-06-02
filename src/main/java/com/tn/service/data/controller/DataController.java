@@ -1,5 +1,7 @@
 package com.tn.service.data.controller;
 
+import static java.util.Collections.emptySet;
+
 import static com.tn.lang.Iterables.isNotEmpty;
 import static com.tn.lang.Objects.coalesce;
 import static com.tn.lang.Strings.isNotNullOrWhitespace;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.tn.lang.util.Page;
 import com.tn.lang.util.function.WrappedException;
 import com.tn.service.data.api.DataApi;
+import com.tn.service.data.domain.Direction;
 import com.tn.service.data.io.KeyParser;
 import com.tn.service.data.repository.DataRepository;
 import com.tn.service.data.repository.DeleteException;
@@ -78,7 +81,9 @@ public class DataController<K, V> implements DataApi
     @RequestParam(value = "key", required = false) Collection<String> keys,
     @RequestParam(value = "q", required = false) String query,
     @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
-    @RequestParam(value = "pageSize", required = false) Integer pageSize
+    @RequestParam(value = "pageSize", required = false) Integer pageSize,
+    @RequestParam(value = "sort", required = false) Collection<String> sort,
+    @RequestParam(value = "direction", defaultValue = "ASCENDING") Direction direction
   )
   {
     if (isNotEmpty(keys))
@@ -92,22 +97,22 @@ public class DataController<K, V> implements DataApi
         return badRequest("Pagination not supported with Key(s)");
       }
 
-      return ResponseEntity.ok(arrayNode(dataRepository.findAll(parseKeys(keys))));
+      return ResponseEntity.ok(arrayNode(dataRepository.findAll(parseKeys(keys), coalesce(sort, emptySet()), direction)));
     }
     else if (isNotNullOrWhitespace(query))
     {
       return ResponseEntity.ok(
-        pageNumber != null || pageSize != null ?
-          objectNode(dataRepository.findFor(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE))) :
-          arrayNode(dataRepository.findFor(query))
+        pageNumber != null || pageSize != null
+          ? objectNode(dataRepository.findWhere(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), direction))
+          : arrayNode(dataRepository.findWhere(query, coalesce(sort, emptySet()), direction))
       );
     }
     else
     {
       return ResponseEntity.ok(
-        pageNumber != null || pageSize != null ?
-          objectNode(dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE))) :
-          arrayNode(dataRepository.findAll())
+        pageNumber != null || pageSize != null
+          ? objectNode(dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), direction))
+          : arrayNode(dataRepository.findAll(coalesce(sort, emptySet()), direction))
       );
     }
   }

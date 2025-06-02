@@ -5,26 +5,21 @@ import java.util.List;
 import java.util.Optional;
 
 import com.tn.lang.util.Page;
+import com.tn.service.data.domain.Direction;
 
 public interface DataRepository<K, V>
 {
   Optional<V> find(K key) throws FindException;
 
-  Collection<V> findAll() throws FindException;
+  Collection<V> findAll(Collection<String> sort, Direction direction) throws FindException;
 
-  Page<V> findAll(int pageNumber, int pageSize) throws FindException;
+  Page<V> findAll(int pageNumber, int pageSize, Collection<String> sort, Direction direction) throws FindException;
 
-  @SuppressWarnings("unchecked")
-  default Collection<V> findAll(K... keys) throws FindException
-  {
-    return findAll(List.of(keys));
-  }
+  Collection<V> findAll(Iterable<K> keys, Collection<String> sort, Direction direction) throws FindException;
 
-  Collection<V> findAll(Iterable<K> keys) throws FindException;
+  Collection<V> findWhere(String query, Collection<String> sort, Direction direction) throws FindException;
 
-  Collection<V> findFor(String query) throws FindException;
-
-  Page<V> findFor(String query, int pageNumber, int pageSize) throws FindException;
+  Page<V> findWhere(String query, int pageNumber, int pageSize, Collection<String> sort, Direction direction) throws FindException;
 
   V insert(V value) throws InsertException;
 

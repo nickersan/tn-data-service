@@ -1,6 +1,7 @@
 package com.tn.service.data.api;
 
 import static java.lang.String.format;
+import static java.util.Collections.emptySet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -18,9 +19,12 @@ import static org.springframework.http.HttpMethod.PUT;
 import static com.tn.service.data.controller.DataController.DEFAULT_PAGE_NUMBER;
 import static com.tn.service.data.controller.DataController.DEFAULT_PAGE_SIZE;
 import static com.tn.service.data.controller.DataController.FIELD_MESSAGE;
+import static com.tn.service.data.domain.Direction.ASCENDING;
+import static com.tn.service.data.domain.Direction.DESCENDING;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +43,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 
 import com.tn.lang.util.Page;
+import com.tn.service.data.domain.Direction;
 import com.tn.service.data.io.KeyParser;
 import com.tn.service.data.repository.DataRepository;
 import com.tn.service.data.repository.DeleteException;
@@ -78,9 +83,31 @@ class DataApiIntegrationTest
     Value value1 = new Value(1, "ONE");
     Value value2 = new Value(2, "TWO");
 
-    when(dataRepository.findAll()).thenReturn(List.of(value1, value2));
+    when(dataRepository.findAll(emptySet(), ASCENDING)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange("/", GET, null, TYPE_REFERENCE_LIST);
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(List.of(value1, value2), response.getBody());
+  }
+
+  @Test
+  void shouldGetWithSort()
+  {
+    Value value1 = new Value(1, "ONE");
+    Value value2 = new Value(2, "TWO");
+
+    String sort = "name";
+    Direction direction = DESCENDING;
+
+    when(dataRepository.findAll(Set.of(sort), direction)).thenReturn(List.of(value1, value2));
+
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange(
+      format("/?sort=%s&direction=%s", sort, direction),
+      GET,
+      null,
+      TYPE_REFERENCE_LIST
+    );
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
     assertEquals(List.of(value1, value2), response.getBody());
@@ -99,7 +126,7 @@ class DataApiIntegrationTest
     assertTrue(response.getStatusCode().is2xxSuccessful());
     assertEquals(value, response.getBody());
   }
-
+  
   @Test
   void shouldGetWithKeys()
   {
@@ -108,10 +135,34 @@ class DataApiIntegrationTest
 
     when(keyParser.parse(value1.id().toString())).thenReturn(value1.id());
     when(keyParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findAll(List.of(value1.id(), value2.id()))).thenReturn(List.of(value1, value2));
+    when(dataRepository.findAll(List.of(value1.id(), value2.id()), emptySet(), ASCENDING)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
       format("/?key=%s&key=%s", value1.id(), value2.id()),
+      GET,
+      null,
+      TYPE_REFERENCE_LIST
+    );
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(List.of(value1, value2), response.getBody());
+  }
+
+  @Test
+  void shouldGetWithKeysAndSort()
+  {
+    Value value1 = new Value(1, "ONE");
+    Value value2 = new Value(2, "TWO");
+
+    String sort = "name";
+    Direction direction = DESCENDING;
+    
+    when(keyParser.parse(value1.id().toString())).thenReturn(value1.id());
+    when(keyParser.parse(value2.id().toString())).thenReturn(value2.id());
+    when(dataRepository.findAll(List.of(value1.id(), value2.id()), Set.of(sort), direction)).thenReturn(List.of(value1, value2));
+
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange(
+      format("/?key=%s&key=%s&sort=%s&direction=%s", value1.id(), value2.id(), sort, direction),
       GET,
       null,
       TYPE_REFERENCE_LIST
@@ -127,10 +178,32 @@ class DataApiIntegrationTest
     Value value = new Value(123, "TEST");
     String query = "name=" + value.name();
 
-    when(dataRepository.findFor(query)).thenReturn(List.of(value));
+    when(dataRepository.findWhere(query, emptySet(), ASCENDING)).thenReturn(List.of(value));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
       "/?q=" + query,
+      GET,
+      null,
+      TYPE_REFERENCE_LIST
+    );
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(List.of(value), response.getBody());
+  }
+
+  @Test
+  void shouldGetWithQueryAndSort()
+  {
+    Value value = new Value(123, "TEST");
+    String query = "name=" + value.name();
+
+    String sort = "name";
+    Direction direction = DESCENDING;
+
+    when(dataRepository.findWhere(query, Set.of(sort), direction)).thenReturn(List.of(value));
+
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange(
+      format("/?q=%s&sort=%s&direction=%s", query, sort, direction),
       GET,
       null,
       TYPE_REFERENCE_LIST
@@ -149,10 +222,35 @@ class DataApiIntegrationTest
 
     Page<Value> page = new Page<>(List.of(value), pageNumber, 2, DEFAULT_PAGE_SIZE + 1);
 
-    when(dataRepository.findFor(query, pageNumber, DEFAULT_PAGE_SIZE)).thenReturn(page);
+    when(dataRepository.findWhere(query, pageNumber, DEFAULT_PAGE_SIZE, emptySet(), ASCENDING)).thenReturn(page);
 
     ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
-      "/?q=" + query + "&pageNumber=" + pageNumber,
+      format("/?q=%s&pageNumber=%d", query, pageNumber),
+      GET,
+      null,
+      TYPE_REFERENCE_PAGE
+    );
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(page, response.getBody());
+  }
+
+  @Test
+  void shouldGetWithQueryAndPageNumberAndSort()
+  {
+    Value value = new Value(123, "TEST");
+    String query = "name=" + value.name();
+    int pageNumber = 1;
+
+    String sort = "name";
+    Direction direction = DESCENDING;
+
+    Page<Value> page = new Page<>(List.of(value), pageNumber, 2, DEFAULT_PAGE_SIZE + 1);
+
+    when(dataRepository.findWhere(query, pageNumber, DEFAULT_PAGE_SIZE, Set.of(sort), direction)).thenReturn(page);
+
+    ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
+      format("/?q=%s&pageNumber=%d&sort=%s&direction=%s", query, pageNumber, sort, direction),
       GET,
       null,
       TYPE_REFERENCE_PAGE
@@ -171,10 +269,35 @@ class DataApiIntegrationTest
 
     Page<Value> page = new Page<>(List.of(value), DEFAULT_PAGE_NUMBER, 2, pageSize + 1);
 
-    when(dataRepository.findFor(query, DEFAULT_PAGE_NUMBER, pageSize)).thenReturn(page);
+    when(dataRepository.findWhere(query, DEFAULT_PAGE_NUMBER, pageSize, emptySet(), ASCENDING)).thenReturn(page);
 
     ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
-      "/?q=" + query + "&pageSize=" + pageSize,
+      format("/?q=%s&pageSize=%d", query, pageSize),
+      GET,
+      null,
+      TYPE_REFERENCE_PAGE
+    );
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(page, response.getBody());
+  }
+
+  @Test
+  void shouldGetWithQueryAndPageSizeAndSort()
+  {
+    Value value = new Value(123, "TEST");
+    String query = "name=" + value.name();
+    int pageSize = 10;
+
+    String sort = "name";
+    Direction direction = DESCENDING;
+
+    Page<Value> page = new Page<>(List.of(value), DEFAULT_PAGE_NUMBER, 2, pageSize + 1);
+
+    when(dataRepository.findWhere(query, DEFAULT_PAGE_NUMBER, pageSize, Set.of(sort), direction)).thenReturn(page);
+
+    ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
+      format("/?q=%s&pageSize=%d&sort=%s&direction=%s", query, pageSize, sort, direction),
       GET,
       null,
       TYPE_REFERENCE_PAGE
@@ -194,10 +317,36 @@ class DataApiIntegrationTest
 
     Page<Value> page = new Page<>(List.of(value), pageNumber, 2, pageSize + 1);
 
-    when(dataRepository.findFor(query, pageNumber, pageSize)).thenReturn(page);
+    when(dataRepository.findWhere(query, pageNumber, pageSize, emptySet(), ASCENDING)).thenReturn(page);
 
     ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
-      "/?q=" + query + "&pageNumber=" + pageNumber + "&pageSize=" + pageSize,
+      format("/?q=%s&pageNumber=%d&pageSize=%d", query, pageNumber, pageSize),
+      GET,
+      null,
+      TYPE_REFERENCE_PAGE
+    );
+
+    assertTrue(response.getStatusCode().is2xxSuccessful());
+    assertEquals(page, response.getBody());
+  }
+
+  @Test
+  void shouldGetWithQueryAndPageNumberAndPageSizeAndSort()
+  {
+    Value value = new Value(123, "TEST");
+    String query = "name=" +  value.name();
+    int pageNumber = 1;
+    int pageSize = 10;
+
+    String sort = "name";
+    Direction direction = DESCENDING;
+
+    Page<Value> page = new Page<>(List.of(value), pageNumber, 2, pageSize + 1);
+
+    when(dataRepository.findWhere(query, pageNumber, pageSize, Set.of(sort), direction)).thenReturn(page);
+
+    ResponseEntity<Page<Value>> response = testRestTemplate.exchange(
+      format("/?q=%s&pageNumber=%d&pageSize=%d&sort=%s&direction=%s", query, pageNumber, pageSize, sort, direction),
       GET,
       null,
       TYPE_REFERENCE_PAGE

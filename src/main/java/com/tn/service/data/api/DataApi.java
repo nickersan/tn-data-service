@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import com.tn.service.data.domain.Direction;
+
 public interface DataApi
 {
   @GetMapping(value = "/{key}", produces = APPLICATION_JSON_VALUE)
@@ -21,10 +23,12 @@ public interface DataApi
 
   @GetMapping(produces = APPLICATION_JSON_VALUE)
   ResponseEntity<? extends JsonNode> get(
-    @RequestParam(value = "key") Collection<String> keys,
+    @RequestParam(value = "key", required = false) Collection<String> keys,
     @RequestParam(value = "q", required = false) String query,
     @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
-    @RequestParam(value = "pageSize", required = false) Integer pageSize
+    @RequestParam(value = "pageSize", required = false) Integer pageSize,
+    @RequestParam(value = "sort", required = false) Collection<String> sort,
+    @RequestParam(value = "direction", defaultValue = "ASCENDING") Direction direction
   );
 
   @PostMapping(consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
@@ -38,4 +42,5 @@ public interface DataApi
 
   @DeleteMapping
   ResponseEntity<Void> delete(@RequestParam(value = "key") Collection<String> keys);
+
 }
