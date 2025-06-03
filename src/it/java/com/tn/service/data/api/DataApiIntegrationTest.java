@@ -135,7 +135,7 @@ class DataApiIntegrationTest
 
     when(keyParser.parse(value1.id().toString())).thenReturn(value1.id());
     when(keyParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findAll(List.of(value1.id(), value2.id()), emptySet(), ASCENDING)).thenReturn(List.of(value1, value2));
+    when(dataRepository.findAll(List.of(value1.id(), value2.id()))).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
       format("/?key=%s&key=%s", value1.id(), value2.id()),
@@ -149,27 +149,62 @@ class DataApiIntegrationTest
   }
 
   @Test
-  void shouldGetWithKeysAndSort()
+  void shouldGetEmptyWithKeys()
   {
     Value value1 = new Value(1, "ONE");
     Value value2 = new Value(2, "TWO");
 
-    String sort = "name";
-    Direction direction = DESCENDING;
-    
     when(keyParser.parse(value1.id().toString())).thenReturn(value1.id());
     when(keyParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findAll(List.of(value1.id(), value2.id()), Set.of(sort), direction)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
-      format("/?key=%s&key=%s&sort=%s&direction=%s", value1.id(), value2.id(), sort, direction),
+      format("/?key=%s&key=%s", value1.id(), value2.id()),
       GET,
       null,
       TYPE_REFERENCE_LIST
     );
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertEquals(List.of(value1, value2), response.getBody());
+    assertNotNull(response.getBody());
+    assertTrue(response.getBody().isEmpty());
+  }
+
+  @Test
+  void shouldNotGetWithKeysAndSort()
+  {
+    Value value1 = new Value(1, "ONE");
+    Value value2 = new Value(2, "TWO");
+
+    when(keyParser.parse(value1.id().toString())).thenReturn(value1.id());
+    when(keyParser.parse(value2.id().toString())).thenReturn(value2.id());
+
+    ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity(
+      format("/?key=%s&key=%s&sort=name", value1.id(), value2.id()),
+      ObjectNode.class
+    );
+
+    assertTrue(response.getStatusCode().is4xxClientError());
+    assertNotNull(response.getBody());
+    assertEquals("Sorting not supported with Key(s)", response.getBody().get(FIELD_MESSAGE).asText());
+  }
+
+  @Test
+  void shouldNotGetWithKeysAndDirection()
+  {
+    Value value1 = new Value(1, "ONE");
+    Value value2 = new Value(2, "TWO");
+
+    when(keyParser.parse(value1.id().toString())).thenReturn(value1.id());
+    when(keyParser.parse(value2.id().toString())).thenReturn(value2.id());
+
+    ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity(
+      format("/?key=%s&key=%s&direction=DESCENDING", value1.id(), value2.id()),
+      ObjectNode.class
+    );
+
+    assertTrue(response.getStatusCode().is4xxClientError());
+    assertNotNull(response.getBody());
+    assertEquals("Sorting not supported with Key(s)", response.getBody().get(FIELD_MESSAGE).asText());
   }
 
   @Test
@@ -374,7 +409,7 @@ class DataApiIntegrationTest
   {
     ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity("/?key=1&q=x", ObjectNode.class);
 
-    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
     assertEquals("Query parameter not allowed with key(s)", response.getBody().get(FIELD_MESSAGE).asText());
   }
@@ -385,7 +420,7 @@ class DataApiIntegrationTest
   {
     ResponseEntity<ObjectNode> response = testRestTemplate.getForEntity("/?key=1&" + paginationParameter, ObjectNode.class);
 
-    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
     assertEquals("Pagination not supported with Key(s)", response.getBody().get(FIELD_MESSAGE).asText());
   }
@@ -425,7 +460,7 @@ class DataApiIntegrationTest
   {
     ResponseEntity<ObjectNode> response = testRestTemplate.postForEntity("/", List.of("INVALID"), ObjectNode.class);
 
-    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
     assertEquals("Invalid body", response.getBody().get(FIELD_MESSAGE).asText());
   }
@@ -479,7 +514,7 @@ class DataApiIntegrationTest
   {
     ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/", PUT, body(List.of("INVALID")), ObjectNode.class);
 
-    assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
     assertEquals("Invalid body", response.getBody().get(FIELD_MESSAGE).asText());
   }

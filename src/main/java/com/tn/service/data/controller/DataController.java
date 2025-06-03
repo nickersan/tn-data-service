@@ -6,6 +6,7 @@ import static com.tn.lang.Iterables.isNotEmpty;
 import static com.tn.lang.Objects.coalesce;
 import static com.tn.lang.Strings.isNotNullOrWhitespace;
 import static com.tn.lang.util.function.Lambdas.wrapFunction;
+import static com.tn.service.data.domain.Direction.ASCENDING;
 
 import java.util.Collection;
 import java.util.stream.StreamSupport;
@@ -83,7 +84,7 @@ public class DataController<K, V> implements DataApi
     @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
     @RequestParam(value = "pageSize", required = false) Integer pageSize,
     @RequestParam(value = "sort", required = false) Collection<String> sort,
-    @RequestParam(value = "direction", defaultValue = "ASCENDING") Direction direction
+    @RequestParam(value = "direction", required = false) Direction direction
   )
   {
     if (isNotEmpty(keys))
@@ -96,15 +97,19 @@ public class DataController<K, V> implements DataApi
       {
         return badRequest("Pagination not supported with Key(s)");
       }
+      if (sort != null || direction != null)
+      {
+        return badRequest("Sorting not supported with Key(s)");
+      }
 
-      return ResponseEntity.ok(arrayNode(dataRepository.findAll(parseKeys(keys), coalesce(sort, emptySet()), direction)));
+      return ResponseEntity.ok(arrayNode(dataRepository.findAll(parseKeys(keys))));
     }
     else if (isNotNullOrWhitespace(query))
     {
       return ResponseEntity.ok(
         pageNumber != null || pageSize != null
-          ? objectNode(dataRepository.findWhere(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), direction))
-          : arrayNode(dataRepository.findWhere(query, coalesce(sort, emptySet()), direction))
+          ? objectNode(dataRepository.findWhere(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
+          : arrayNode(dataRepository.findWhere(query, coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
       );
     }
     else
@@ -112,7 +117,7 @@ public class DataController<K, V> implements DataApi
       return ResponseEntity.ok(
         pageNumber != null || pageSize != null
           ? objectNode(dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), direction))
-          : arrayNode(dataRepository.findAll(coalesce(sort, emptySet()), direction))
+          : arrayNode(dataRepository.findAll(coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
       );
     }
   }
