@@ -255,7 +255,7 @@ class DataApiIntegrationTest
     String query = "name=" + value.name();
     int pageNumber = 1;
 
-    Page<Value> page = new Page<>(List.of(value), pageNumber, 2, DEFAULT_PAGE_SIZE + 1);
+    Page<Value> page = new Page<>(List.of(value), pageNumber, DEFAULT_PAGE_SIZE, DEFAULT_PAGE_SIZE + 1, 2);
 
     when(dataRepository.findWhere(query, pageNumber, DEFAULT_PAGE_SIZE, emptySet(), ASCENDING)).thenReturn(page);
 
@@ -280,7 +280,7 @@ class DataApiIntegrationTest
     String sort = "name";
     Direction direction = DESCENDING;
 
-    Page<Value> page = new Page<>(List.of(value), pageNumber, 2, DEFAULT_PAGE_SIZE + 1);
+    Page<Value> page = new Page<>(List.of(value), pageNumber, DEFAULT_PAGE_SIZE, DEFAULT_PAGE_SIZE + 1, 2);
 
     when(dataRepository.findWhere(query, pageNumber, DEFAULT_PAGE_SIZE, Set.of(sort), direction)).thenReturn(page);
 
@@ -302,7 +302,7 @@ class DataApiIntegrationTest
     String query = "name=" + value.name();
     int pageSize = 10;
 
-    Page<Value> page = new Page<>(List.of(value), DEFAULT_PAGE_NUMBER, 2, pageSize + 1);
+    Page<Value> page = new Page<>(List.of(value), DEFAULT_PAGE_NUMBER, pageSize, 1, 1);
 
     when(dataRepository.findWhere(query, DEFAULT_PAGE_NUMBER, pageSize, emptySet(), ASCENDING)).thenReturn(page);
 
@@ -327,7 +327,7 @@ class DataApiIntegrationTest
     String sort = "name";
     Direction direction = DESCENDING;
 
-    Page<Value> page = new Page<>(List.of(value), DEFAULT_PAGE_NUMBER, 2, pageSize + 1);
+    Page<Value> page = new Page<>(List.of(value), DEFAULT_PAGE_NUMBER, pageSize, 1, 1);
 
     when(dataRepository.findWhere(query, DEFAULT_PAGE_NUMBER, pageSize, Set.of(sort), direction)).thenReturn(page);
 
@@ -350,7 +350,7 @@ class DataApiIntegrationTest
     int pageNumber = 1;
     int pageSize = 10;
 
-    Page<Value> page = new Page<>(List.of(value), pageNumber, 2, pageSize + 1);
+    Page<Value> page = new Page<>(List.of(value), pageNumber, pageSize, pageSize + 1, 2);
 
     when(dataRepository.findWhere(query, pageNumber, pageSize, emptySet(), ASCENDING)).thenReturn(page);
 
@@ -376,7 +376,7 @@ class DataApiIntegrationTest
     String sort = "name";
     Direction direction = DESCENDING;
 
-    Page<Value> page = new Page<>(List.of(value), pageNumber, 2, pageSize + 1);
+    Page<Value> page = new Page<>(List.of(value), pageNumber, pageSize, pageSize + 1, 2);
 
     when(dataRepository.findWhere(query, pageNumber, pageSize, Set.of(sort), direction)).thenReturn(page);
 
