@@ -33,6 +33,8 @@ import com.tn.service.IllegalParameterException;
 public class QueryBuilder
 {
   private static final String PARAM_QUERY = "q";
+  private static final Collection<String> ALLOWED_PARAMS = Set.of(PARAM_QUERY, "$pageNumber", "$pageSize", "$sort", "$direction");
+  private static final Collection<String> IGNORED_PARAMS = Set.of("$pageNumber", "$pageSize", "$sort", "$direction");
   private static final String TEMPLATE_EQUAL = "%s=%s";
   private static final String TEMPLATE_PARENTHESIS = "(%s)";
 
@@ -53,6 +55,7 @@ public class QueryBuilder
     checkParams(params);
 
     return params.entrySet().stream()
+      .filter(param -> !IGNORED_PARAMS.contains(param.getKey()))
       .map(this::or)
       .collect(Collectors.joining(AND));
   }
@@ -61,7 +64,7 @@ public class QueryBuilder
   {
     for (String paramName : params.keySet())
     {
-      if (!PARAM_QUERY.equals(paramName) && !fieldNames.contains(paramName))
+      if (!ALLOWED_PARAMS.contains(paramName) && !fieldNames.contains(paramName))
       {
         throw new IllegalParameterException("Unknown param: " + paramName);
       }

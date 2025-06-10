@@ -4,12 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-class StringKeyParserTest
+class StringIdParserTest
 {
   @Test
   void shouldParseKey()
   {
     String key = "ABC";
-    assertEquals(key, new StringKeyParser().parse(key));
+    assertEquals(key, new StringIdParser().parse(key));
   }
 }

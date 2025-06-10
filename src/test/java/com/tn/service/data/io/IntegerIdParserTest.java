@@ -8,12 +8,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class IntegerKeyParserTest
+class IntegerIdParserTest
 {
   @Test
   void shouldParseKey()
   {
-    assertEquals(2, new IntegerKeyParser().parse("2"));
+    assertEquals(2, new IntegerIdParser().parse("2"));
   }
 
   @ParameterizedTest
@@ -21,6 +21,6 @@ class IntegerKeyParserTest
   @ValueSource(strings = {"", "X"})
   void shouldThrowInvalidKeyException(String invalidKey)
   {
-    assertThrows(InvalidKeyException.class, () -> new IntegerKeyParser().parse(invalidKey));
+    assertThrows(InvalidIdException.class, () -> new IntegerIdParser().parse(invalidKey));
   }
 }

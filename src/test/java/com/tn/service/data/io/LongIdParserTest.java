@@ -8,12 +8,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class LongKeyParserTest
+class LongIdParserTest
 {
   @Test
   void shouldParseKey()
   {
-    assertEquals(2, new LongKeyParser().parse("2"));
+    assertEquals(2, new LongIdParser().parse("2"));
   }
 
   @ParameterizedTest
@@ -21,6 +21,6 @@ class LongKeyParserTest
   @ValueSource(strings = {"", "X"})
   void shouldThrowInvalidKeyException(String invalidKey)
   {
-    assertThrows(InvalidKeyException.class, () -> new LongKeyParser().parse(invalidKey));
+    assertThrows(InvalidIdException.class, () -> new LongIdParser().parse(invalidKey));
   }
 }

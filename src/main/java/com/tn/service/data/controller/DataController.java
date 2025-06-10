@@ -2,38 +2,33 @@ package com.tn.service.data.controller;
 
 import static java.util.Collections.emptySet;
 
-import static com.tn.lang.Iterables.isNotEmpty;
 import static com.tn.lang.Objects.coalesce;
 import static com.tn.lang.Strings.isNotNullOrWhitespace;
-import static com.tn.lang.util.function.Lambdas.wrapFunction;
 import static com.tn.service.data.domain.Direction.ASCENDING;
 
 import java.util.Collection;
-import java.util.stream.StreamSupport;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ContainerNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.tn.lang.util.Page;
-import com.tn.lang.util.function.WrappedException;
+import com.tn.query.QueryParseException;
 import com.tn.service.data.api.DataApi;
 import com.tn.service.data.domain.Direction;
-import com.tn.service.data.io.KeyParser;
+import com.tn.service.data.io.IdParser;
+import com.tn.service.data.io.JsonCodec;
+import com.tn.service.data.io.JsonException;
+import com.tn.service.data.query.QueryBuilder;
 import com.tn.service.data.repository.DataRepository;
 import com.tn.service.data.repository.DeleteException;
 import com.tn.service.data.repository.InsertException;
@@ -42,9 +37,9 @@ import com.tn.service.data.repository.UpdateException;
 
 @Slf4j
 @RestController
+@RequestMapping("${tn.service.data.path.root:}")
 @ConditionalOnWebApplication
-@ConditionalOnBean({DataRepository.class, KeyParser.class})
-@ConditionalOnProperty("tn.data.value-class")
+@ConditionalOnBean({DataRepository.class, IdParser.class, JsonCodec.class, QueryBuilder.class})
 public class DataController<K, V> implements DataApi
 {
   public static final int DEFAULT_PAGE_NUMBER = 0;
@@ -52,72 +47,51 @@ public class DataController<K, V> implements DataApi
   public static final String FIELD_MESSAGE = "message";
 
   private final DataRepository<K, V> dataRepository;
-  private final KeyParser<K> keyParser;
-  private final ObjectMapper objectMapper;
-  private final Class<V> valueClass;
+  private final IdParser<K> idParser;
+  private final JsonCodec<V>  jsonCodec;
+  private final QueryBuilder queryBuilder;
 
-  public DataController(
-    DataRepository<K, V> dataRepository,
-    KeyParser<K> keyParser,
-    ObjectMapper objectMapper,
-    @Value("${tn.data.value-class}") Class<V> valueClass
-  )
+  public DataController(IdParser<K> idParser, JsonCodec<V> jsonCodec, QueryBuilder queryBuilder, DataRepository<K, V> dataRepository)
   {
+    this.idParser = idParser;
+    this.jsonCodec = jsonCodec;
+    this.queryBuilder = queryBuilder;
     this.dataRepository = dataRepository;
-    this.keyParser = keyParser;
-    this.objectMapper = objectMapper;
-    this.valueClass = valueClass;
   }
 
   @Override
-  public ResponseEntity<? extends JsonNode> get(String key)
+  public ResponseEntity<? extends JsonNode> get(String id)
   {
-    return dataRepository.find(parseKey(key))
-      .map(value -> ResponseEntity.ok(objectNode(value)))
+    return dataRepository.find(parseKey(id))
+      .map(value -> ResponseEntity.ok(jsonCodec.writeValue(value)))
       .orElse(ResponseEntity.notFound().build());
   }
 
   @Override
   public ResponseEntity<? extends JsonNode> get(
-    @RequestParam(value = "key", required = false) Collection<String> keys,
-    @RequestParam(value = "q", required = false) String query,
-    @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
-    @RequestParam(value = "pageSize", required = false) Integer pageSize,
-    @RequestParam(value = "sort", required = false) Collection<String> sort,
-    @RequestParam(value = "direction", required = false) Direction direction
+    MultiValueMap<String, String> params,
+    Integer pageNumber,
+    Integer pageSize,
+    Collection<String> sort,
+    Direction direction
   )
   {
-    if (isNotEmpty(keys))
-    {
-      if (query != null)
-      {
-        return badRequest("Query parameter not allowed with key(s)");
-      }
-      if (pageNumber != null || pageSize != null)
-      {
-        return badRequest("Pagination not supported with Key(s)");
-      }
-      if (sort != null || direction != null)
-      {
-        return badRequest("Sorting not supported with Key(s)");
-      }
+    String query = queryBuilder.build(params);
 
-      return ResponseEntity.ok(arrayNode(dataRepository.findAll(parseKeys(keys))));
-    }
-    else if (isNotNullOrWhitespace(query))
+    if (isNotNullOrWhitespace(query))
     {
       return ResponseEntity.ok(
         pageNumber != null || pageSize != null
-          ? objectNode(dataRepository.findWhere(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
-          : arrayNode(dataRepository.findWhere(query, coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
+          ? jsonCodec.writeValue(dataRepository.findWhere(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
+          : jsonCodec.writeValues(dataRepository.findWhere(query, coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
       );
     }
     else
     {
       return ResponseEntity.ok(
         pageNumber != null || pageSize != null
-          ? objectNode(dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), direction))
-          : arrayNode(dataRepository.findAll(coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
+          ? jsonCodec.writeValue(dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), direction))
+          : jsonCodec.writeValues(dataRepository.findAll(coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
       );
     }
   }
@@ -125,55 +99,41 @@ public class DataController<K, V> implements DataApi
   @Override
   public ResponseEntity<? extends JsonNode> post(RequestEntity<JsonNode> request)
   {
-    try
+    if (request.getBody() instanceof ObjectNode)
     {
-      if (request.getBody() instanceof ObjectNode)
-      {
-        return ResponseEntity.ok(objectNode(dataRepository.insert(value(request.getBody()))));
-      }
-      else if (request.getBody() instanceof ArrayNode)
-      {
-        return ResponseEntity.ok(arrayNode(dataRepository.insertAll(values(request.getBody()))));
-      }
-      else
-      {
-        return badRequest("Invalid body");
-      }
+      return ResponseEntity.ok(jsonCodec.writeValue(dataRepository.insert(jsonCodec.readValue(request.getBody()))));
     }
-    catch (JsonProcessingException | ClassCastException e)
+    else if (request.getBody() instanceof ArrayNode)
     {
-      return badRequest("Invalid body");
+      return ResponseEntity.ok(jsonCodec.writeValues(dataRepository.insertAll(jsonCodec.readValues((ArrayNode)request.getBody()))));
+    }
+    else
+    {
+      return invalidBody();
     }
   }
 
   @Override
   public ResponseEntity<? extends JsonNode> put(RequestEntity<JsonNode> request)
   {
-    try
+    if (request.getBody() instanceof ObjectNode)
     {
-      if (request.getBody() instanceof ObjectNode)
-      {
-        return ResponseEntity.ok(objectNode(dataRepository.update(value(request.getBody()))));
-      }
-      else if (request.getBody() instanceof ArrayNode)
-      {
-        return ResponseEntity.ok(arrayNode(dataRepository.updateAll(values(request.getBody()))));
-      }
-      else
-      {
-        return badRequest("Invalid body");
-      }
+      return ResponseEntity.ok(jsonCodec.writeValue(dataRepository.update(jsonCodec.readValue(request.getBody()))));
     }
-    catch (JsonProcessingException | ClassCastException e)
+    else if (request.getBody() instanceof ArrayNode)
     {
-      return badRequest("Invalid body");
+      return ResponseEntity.ok(jsonCodec.writeValues(dataRepository.updateAll(jsonCodec.readValues((ArrayNode)request.getBody()))));
+    }
+    else
+    {
+      return invalidBody();
     }
   }
 
   @Override
   public ResponseEntity<Void> delete(String key)
   {
-    dataRepository.delete(keyParser.parse(key));
+    dataRepository.delete(idParser.parse(key));
     return ResponseEntity.ok().build();
   }
 
@@ -188,61 +148,34 @@ public class DataController<K, V> implements DataApi
   ResponseEntity<ObjectNode> internalServerError(RepositoryException e)
   {
     log.error("Handling error", e);
-
-    ObjectNode error = new ObjectNode(null);
-    error.set(FIELD_MESSAGE, TextNode.valueOf(e.getMessage()));
-
-    return ResponseEntity.internalServerError().body(error);
+    return ResponseEntity.internalServerError().body(error(e.getMessage()));
   }
 
-  @ExceptionHandler(ClassCastException.class)
-  ResponseEntity<ObjectNode> classCast(ClassCastException e)
+  @ExceptionHandler({ ClassCastException.class, JsonException.class })
+  ResponseEntity<ObjectNode> invalidBody(RuntimeException e)
   {
     log.error("Handling error", e);
+    return invalidBody();
+  }
 
+  @ExceptionHandler(QueryParseException.class)
+  ResponseEntity<ObjectNode> queryParse(QueryParseException e)
+  {
+    log.error("Handling error", e);
+    return ResponseEntity.badRequest().body(error(e.getMessage()));
+  }
+
+  private ResponseEntity<ObjectNode> invalidBody()
+  {
+    return ResponseEntity.badRequest().body(error("Invalid body"));
+  }
+
+  private ObjectNode error(String message)
+  {
     ObjectNode error = new ObjectNode(null);
-    error.set(FIELD_MESSAGE, TextNode.valueOf("Invalid body"));
+    error.set(FIELD_MESSAGE, TextNode.valueOf(message));
 
-    return ResponseEntity.badRequest().body(error);
-  }
-
-  private ContainerNode<?> arrayNode(Collection<V> values)
-  {
-    return objectMapper.createArrayNode().addAll(values.stream().map(this::objectNode).toList());
-  }
-
-  private ObjectNode objectNode(V value)
-  {
-    return value instanceof ObjectNode ? (ObjectNode)value : objectMapper.valueToTree(value);
-  }
-
-  private V value(JsonNode node) throws JsonProcessingException
-  {
-    return ObjectNode.class.equals(valueClass) ? valueClass.cast(node) : objectMapper.treeToValue(node, valueClass);
-  }
-
-  private Iterable<V> values(JsonNode array) throws JsonProcessingException
-  {
-    try
-    {
-      return StreamSupport.stream(array.spliterator(), false).map(wrapFunction(this::value)).toList();
-    }
-    catch (WrappedException e)
-    {
-      if (e.getCause() instanceof JsonProcessingException)
-      {
-        throw (JsonProcessingException)e.getCause();
-      }
-      else
-      {
-        throw (RuntimeException)e.getCause();
-      }
-    }
-  }
-
-  private ContainerNode<?> objectNode(Page<V> page)
-  {
-    return objectMapper.valueToTree(page);
+    return error;
   }
 
   private Iterable<K> parseKeys(Collection<String> keys)
@@ -252,14 +185,6 @@ public class DataController<K, V> implements DataApi
 
   private K parseKey(String key)
   {
-    return keyParser.parse(key);
-  }
-
-  ResponseEntity<ObjectNode> badRequest(String message)
-  {
-    ObjectNode error = new ObjectNode(null);
-    error.set(FIELD_MESSAGE, TextNode.valueOf(message));
-
-    return ResponseEntity.badRequest().body(error);
+    return idParser.parse(key);
   }
 }
