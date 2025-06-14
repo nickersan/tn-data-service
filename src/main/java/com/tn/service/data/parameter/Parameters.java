@@ -10,6 +10,11 @@ public class Parameters
 
   private Parameters() {}
 
+  public static boolean containsSort(Collection<String> paramNames)
+  {
+    return paramNames.stream().anyMatch(SORT_PARAMS::contains);
+  }
+
   public static boolean isNotReserved(String paramName)
   {
     return !RESERVED_PARAMS.contains(paramName);

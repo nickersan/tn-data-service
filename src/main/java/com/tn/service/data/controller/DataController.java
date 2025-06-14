@@ -91,11 +91,7 @@ public class DataController<ID, V> implements DataApi
     Collection<ID> identities = parameterIdentityParser.parse(params);
     if (!identities.isEmpty())
     {
-      return ResponseEntity.ok(
-        jsonCodec.writeValue(
-          dataRepository.findAll(identities, coalesce(sort, emptySet()), coalesce(direction, ASCENDING))
-        )
-      );
+      return ResponseEntity.ok(jsonCodec.writeValue(dataRepository.findAll(identities)));
     }
     else
     {

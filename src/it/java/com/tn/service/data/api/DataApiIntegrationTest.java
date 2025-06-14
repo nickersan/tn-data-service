@@ -136,7 +136,7 @@ class DataApiIntegrationTest
 
     when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
     when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findAll(Set.of(value1.id(), value2.id()), emptySet(), ASCENDING)).thenReturn(List.of(value1, value2));
+    when(dataRepository.findAll(Set.of(value1.id(), value2.id()))).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
       format("/?id=%s&id=%s", value1.id(), value2.id()),
@@ -168,52 +168,6 @@ class DataApiIntegrationTest
     assertTrue(response.getStatusCode().is2xxSuccessful());
     assertNotNull(response.getBody());
     assertTrue(response.getBody().isEmpty());
-  }
-
-  @Test
-  void shouldGetWithIdsAndSort()
-  {
-    Value value1 = new Value(1, "ONE");
-    Value value2 = new Value(2, "TWO");
-
-    String sort = "name";
-
-    when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
-    when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findAll(Set.of(value1.id(), value2.id()), Set.of(sort), ASCENDING)).thenReturn(List.of(value1, value2));
-
-    ResponseEntity<List<Value>> response = testRestTemplate.exchange(
-      format("/?id=%s&id=%s&$sort=%s", value1.id(), value2.id(), sort),
-      GET,
-      null,
-      TYPE_REFERENCE_LIST
-    );
-
-    assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertNotNull(response.getBody());
-    assertEquals(List.of(value1, value2), response.getBody());
-  }
-
-  @Test
-  void shouldGetWithIdsAndDirection()
-  {
-    Value value1 = new Value(1, "ONE");
-    Value value2 = new Value(2, "TWO");
-
-    when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
-    when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findAll(Set.of(value1.id(), value2.id()), emptySet(), DESCENDING)).thenReturn(List.of(value1, value2));
-
-    ResponseEntity<List<Value>> response = testRestTemplate.exchange(
-      format("/?id=%s&id=%s&$direction=DESCENDING", value1.id(), value2.id()),
-      GET,
-      null,
-      TYPE_REFERENCE_LIST
-    );
-
-    assertTrue(response.getStatusCode().is2xxSuccessful());
-    assertNotNull(response.getBody());
-    assertEquals(List.of(value1, value2), response.getBody());
   }
 
   @Test
@@ -420,7 +374,7 @@ class DataApiIntegrationTest
 
     assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
-    assertEquals("Identity parameters can only be used in isolation from other non-sort parameters", response.getBody().get(FIELD_MESSAGE).asText());
+    assertEquals("Identity parameters can only be used in isolation from other parameters", response.getBody().get(FIELD_MESSAGE).asText());
   }
 
   @Test

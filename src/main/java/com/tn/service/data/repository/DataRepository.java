@@ -14,7 +14,7 @@ public interface DataRepository<K, V>
 
   Page<V> findAll(int pageNumber, int pageSize, Iterable<String> sort, Direction direction) throws FindException;
 
-  Collection<V> findAll(Iterable<K> keys, Collection<String> sort, Direction direction) throws FindException;
+  Collection<V> findAll(Iterable<K> keys) throws FindException;
 
   Collection<V> findWhere(String query, Iterable<String> sort, Direction direction) throws FindException;
 

@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
@@ -26,9 +28,6 @@ class ParameterIdentityParserTest
     MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
     params.add(name, identity1);
     params.add(name, identity2);
-    // including sort params to ensure they are ignored.
-    params.add("$sort", "other");
-    params.add("$direction", "DESCENDING");
 
     @SuppressWarnings("unchecked")
     IdentityParser<String, String> identityParser = mock(IdentityParser.class);
@@ -60,6 +59,22 @@ class ParameterIdentityParserTest
     MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
     params.add(name, "1");
     params.add("other", "Random other field");
+
+    @SuppressWarnings("unchecked")
+    IdentityParser<String, String> identityParser = mock(IdentityParser.class);
+
+    assertThrows(IllegalParameterException.class, () -> new ParameterIdentityParser<>(identityParser, name).parse(params));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"$sort", "$direction", "$pageNumber", "$pageSize"})
+  void shouldNotParseIdentityWithSortFields(String additionName)
+  {
+    String name = "id";
+
+    MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+    params.add(name, "1");
+    params.add(additionName, "name");
 
     @SuppressWarnings("unchecked")
     IdentityParser<String, String> identityParser = mock(IdentityParser.class);

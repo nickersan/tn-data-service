@@ -32,9 +32,9 @@ public class ParameterIdentityParser<T> implements IdentityParser<MultiValueMap<
 
   private void checkParams(MultiValueMap<String, String> params)
   {
-    if (params.containsKey(paramName) && params.keySet().stream().filter(Parameters::isNotSort).count() > 1)
+    if (params.containsKey(paramName) && params.size() > 1)
     {
-      throw new IllegalParameterException("Identity parameters can only be used in isolation from other non-sort parameters");
+      throw new IllegalParameterException("Identity parameters can only be used in isolation from other parameters");
     }
   }
 }
