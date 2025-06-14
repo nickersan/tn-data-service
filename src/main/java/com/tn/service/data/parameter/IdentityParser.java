@@ -1,12 +1,8 @@
 package com.tn.service.data.parameter;
 
-import java.util.Collection;
-
-import org.springframework.util.MultiValueMap;
-
 import com.tn.service.IllegalParameterException;
 
-public interface IdentityParser<T>
+public interface IdentityParser<T, R>
 {
-  Collection<T> parse(MultiValueMap<String, String> params) throws IllegalParameterException;
+  R parse(T raw) throws IllegalParameterException;
 }

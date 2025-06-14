@@ -2,15 +2,10 @@ package com.tn.service.data.parameter;
 
 import com.tn.service.IllegalParameterException;
 
-public class IntegerIdentityParser extends AbstractIdentityParser<Integer>
+public class IntegerIdentityParser implements IdentityParser<String, Integer>
 {
-  public IntegerIdentityParser(String paramName)
-  {
-    super(paramName);
-  }
-
   @Override
-  protected Integer parseIdentity(String s) throws IllegalParameterException
+  public Integer parse(String s) throws IllegalParameterException
   {
     try
     {

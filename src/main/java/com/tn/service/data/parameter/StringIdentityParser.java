@@ -1,16 +1,9 @@
 package com.tn.service.data.parameter;
 
-import com.tn.service.IllegalParameterException;
-
-public class StringIdentityParser extends AbstractIdentityParser<String>
+public class StringIdentityParser implements IdentityParser<String, String>
 {
-  public StringIdentityParser(String paramName)
-  {
-    super(paramName);
-  }
-
   @Override
-  protected String parseIdentity(String s) throws IllegalParameterException
+  public String parse(String s)
   {
     return s;
   }

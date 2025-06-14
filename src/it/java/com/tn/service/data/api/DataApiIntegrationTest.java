@@ -70,7 +70,7 @@ class DataApiIntegrationTest
   DataRepository<Integer, Value> dataRepository;
 
   @Autowired
-  IdentityParser<Integer> identityParser;
+  IdentityParser<String, Integer> identityParser;
 
   @BeforeEach
   void resetMocks()
@@ -136,7 +136,7 @@ class DataApiIntegrationTest
 
     when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
     when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findWhere(format("(id=%s||id=%s)", value1.id(), value2.id()), emptySet(), ASCENDING)).thenReturn(List.of(value1, value2));
+    when(dataRepository.findAll(Set.of(value1.id(), value2.id()), emptySet(), ASCENDING)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
       format("/?id=%s&id=%s", value1.id(), value2.id()),
@@ -180,7 +180,7 @@ class DataApiIntegrationTest
 
     when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
     when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findWhere(format("(id=%s||id=%s)", value1.id(), value2.id()), Set.of(sort), ASCENDING)).thenReturn(List.of(value1, value2));
+    when(dataRepository.findAll(Set.of(value1.id(), value2.id()), Set.of(sort), ASCENDING)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
       format("/?id=%s&id=%s&$sort=%s", value1.id(), value2.id(), sort),
@@ -202,7 +202,7 @@ class DataApiIntegrationTest
 
     when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
     when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
-    when(dataRepository.findWhere(format("(id=%s||id=%s)", value1.id(), value2.id()), emptySet(), DESCENDING)).thenReturn(List.of(value1, value2));
+    when(dataRepository.findAll(Set.of(value1.id(), value2.id()), emptySet(), DESCENDING)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
       format("/?id=%s&id=%s&$direction=DESCENDING", value1.id(), value2.id()),
@@ -420,7 +420,7 @@ class DataApiIntegrationTest
 
     assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
-    assertEquals("Illegal query part: x", response.getBody().get(FIELD_MESSAGE).asText());
+    assertEquals("Identity parameters can only be used in isolation from other non-sort parameters", response.getBody().get(FIELD_MESSAGE).asText());
   }
 
   @Test
@@ -534,36 +534,39 @@ class DataApiIntegrationTest
   @Test
   void shouldDeleteWithId()
   {
-    int id = 123;
+    Value value = new Value(1, "ONE");
 
-    when(identityParser.parse(Integer.toString(id))).thenReturn(id);
+    when(identityParser.parse(Integer.toString(value.id()))).thenReturn(value.id());
+    when(dataRepository.delete(value.id())).thenReturn(Optional.of(value));
 
-    ResponseEntity<Void> response = testRestTemplate.exchange("/" + id, DELETE, null, Void.class);
+    ResponseEntity<Value> response = testRestTemplate.exchange("/" + value.id(), DELETE, null, Value.class);
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-
-    verify(dataRepository).delete(id);
+    assertNotNull(response.getBody());
+    assertEquals(value, response.getBody());
   }
 
   @Test
   void shouldDeleteWithIds()
   {
-    int id1 = 123;
-    int id2 = 234;
+    Value value1 = new Value(1, "ONE");
+    Value value2 = new Value(2, "TWO");
 
-    when(identityParser.parse(Integer.toString(id1))).thenReturn(id1);
-    when(identityParser.parse(Integer.toString(id2))).thenReturn(id2);
+    when(identityParser.parse(Integer.toString(value1.id()))).thenReturn(value1.id());
+    when(identityParser.parse(Integer.toString(value2.id()))).thenReturn(value2.id());
 
-    ResponseEntity<Void> response = testRestTemplate.exchange(
-      format("/?id=%s&id=%s", id1, id2),
+    when(dataRepository.deleteAll(Set.of(value1.id(), value2.id()))).thenReturn(List.of(value1, value2));
+
+    ResponseEntity<List<Value>> response = testRestTemplate.exchange(
+      format("/?id=%s&id=%s", value1.id(), value2.id()),
       DELETE,
       null,
-      Void.class
+      TYPE_REFERENCE_LIST
     );
 
     assertTrue(response.getStatusCode().is2xxSuccessful());
-
-    verify(dataRepository).deleteAll(List.of(id1, id2));
+    assertNotNull(response.getBody());
+    assertEquals(List.of(value1, value2), response.getBody());
   }
 
   @Test
@@ -591,7 +594,7 @@ class DataApiIntegrationTest
   static class TestConfiguration
   {
     @Bean
-    IdentityParser<Integer> idParser()
+    IdentityParser<String, Integer> idParser()
     {
       //noinspection unchecked
       return mock(IdentityParser.class);

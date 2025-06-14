@@ -19,8 +19,8 @@ import com.tn.service.data.domain.Direction;
 
 public interface DataApi
 {
-  @GetMapping(value = "/{id}", produces = APPLICATION_JSON_VALUE)
-  ResponseEntity<? extends JsonNode> get(@PathVariable("id") String id);
+  @GetMapping(value = "/{identity}", produces = APPLICATION_JSON_VALUE)
+  ResponseEntity<? extends JsonNode> get(@PathVariable("identity") String identity);
 
   @GetMapping(produces = APPLICATION_JSON_VALUE)
   ResponseEntity<? extends JsonNode> get(
@@ -37,10 +37,9 @@ public interface DataApi
   @PutMapping(consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
   ResponseEntity<? extends JsonNode> put(RequestEntity<JsonNode> request);
 
-  @DeleteMapping(value = "/{id}")
-  ResponseEntity<Void> delete(@PathVariable("id") String id);
+  @DeleteMapping(value = "/{identity}")
+  ResponseEntity<? extends JsonNode> delete(@PathVariable("identity") String id);
 
   @DeleteMapping
-  ResponseEntity<Void> delete(@RequestParam(required = false) MultiValueMap<String, String> params);
-
+  ResponseEntity<? extends JsonNode> delete(@RequestParam(required = false) MultiValueMap<String, String> params);
 }

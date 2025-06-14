@@ -8,6 +8,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import com.tn.service.IllegalParameterException;
+
 class IntegerIdentityParserTest
 {
   @Test
@@ -21,6 +23,6 @@ class IntegerIdentityParserTest
   @ValueSource(strings = {"", "X"})
   void shouldThrowInvalidKeyException(String invalidKey)
   {
-    assertThrows(InvalidIdException.class, () -> new IntegerIdentityParser().parse(invalidKey));
+    assertThrows(IllegalParameterException.class, () -> new IntegerIdentityParser().parse(invalidKey));
   }
 }

@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.RequestEntity;
@@ -23,11 +24,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.tn.query.QueryParseException;
+import com.tn.service.IllegalParameterException;
 import com.tn.service.data.api.DataApi;
 import com.tn.service.data.domain.Direction;
 import com.tn.service.data.io.JsonCodec;
 import com.tn.service.data.io.JsonException;
 import com.tn.service.data.parameter.IdentityParser;
+import com.tn.service.data.parameter.ParameterIdentityParser;
 import com.tn.service.data.parameter.QueryBuilder;
 import com.tn.service.data.repository.DataRepository;
 import com.tn.service.data.repository.DeleteException;
@@ -40,20 +43,29 @@ import com.tn.service.data.repository.UpdateException;
 @RequestMapping("${tn.service.data.path.root:}")
 @ConditionalOnWebApplication
 @ConditionalOnBean({DataRepository.class, IdentityParser.class, JsonCodec.class, QueryBuilder.class})
-public class DataController<K, V> implements DataApi
+public class DataController<ID, V> implements DataApi
 {
   public static final int DEFAULT_PAGE_NUMBER = 0;
   public static final int DEFAULT_PAGE_SIZE = 100;
   public static final String FIELD_MESSAGE = "message";
 
-  private final DataRepository<K, V> dataRepository;
-  private final IdentityParser<K> identityParser;
+  private final DataRepository<ID, V> dataRepository;
+  private final IdentityParser<String, ID> identityParser;
+  private final IdentityParser<MultiValueMap<String, String>, Collection<ID>> parameterIdentityParser;
   private final JsonCodec<V>  jsonCodec;
   private final QueryBuilder queryBuilder;
 
-  public DataController(IdentityParser<K> identityParser, JsonCodec<V> jsonCodec, QueryBuilder queryBuilder, DataRepository<K, V> dataRepository)
+  @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
+  public DataController(
+    IdentityParser<String, ID> identityParser,
+    JsonCodec<V> jsonCodec,
+    QueryBuilder queryBuilder,
+    DataRepository<ID, V> dataRepository,
+    @Value("${tn.service.data.identity.param-name:id}") String identityParameterName
+  )
   {
     this.identityParser = identityParser;
+    this.parameterIdentityParser = new ParameterIdentityParser<>(identityParser, identityParameterName);
     this.jsonCodec = jsonCodec;
     this.queryBuilder = queryBuilder;
     this.dataRepository = dataRepository;
@@ -62,7 +74,7 @@ public class DataController<K, V> implements DataApi
   @Override
   public ResponseEntity<? extends JsonNode> get(String id)
   {
-    return dataRepository.find(parseId(id))
+    return dataRepository.find(identityParser.parse(id))
       .map(value -> ResponseEntity.ok(jsonCodec.writeValue(value)))
       .orElse(ResponseEntity.notFound().build());
   }
@@ -76,30 +88,35 @@ public class DataController<K, V> implements DataApi
     Direction direction
   )
   {
-    Collection<K> identities = identityParser.parse(params);
+    Collection<ID> identities = parameterIdentityParser.parse(params);
     if (!identities.isEmpty())
     {
-
-    }
-
-
-    String query = queryBuilder.build(params);
-
-    if (isNotNullOrWhitespace(query))
-    {
       return ResponseEntity.ok(
-        pageNumber != null || pageSize != null
-          ? jsonCodec.writeValue(dataRepository.findWhere(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
-          : jsonCodec.writeValues(dataRepository.findWhere(query, coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
+        jsonCodec.writeValue(
+          dataRepository.findAll(identities, coalesce(sort, emptySet()), coalesce(direction, ASCENDING))
+        )
       );
     }
     else
     {
-      return ResponseEntity.ok(
-        pageNumber != null || pageSize != null
-          ? jsonCodec.writeValue(dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), direction))
-          : jsonCodec.writeValues(dataRepository.findAll(coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
-      );
+      String query = queryBuilder.build(params);
+
+      if (isNotNullOrWhitespace(query))
+      {
+        return ResponseEntity.ok(
+          pageNumber != null || pageSize != null
+            ? jsonCodec.writeValue(dataRepository.findWhere(query, coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
+            : jsonCodec.writeValues(dataRepository.findWhere(query, coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
+        );
+      }
+      else
+      {
+        return ResponseEntity.ok(
+          pageNumber != null || pageSize != null
+            ? jsonCodec.writeValue(dataRepository.findAll(coalesce(pageNumber, DEFAULT_PAGE_NUMBER), coalesce(pageSize, DEFAULT_PAGE_SIZE), coalesce(sort, emptySet()), direction))
+            : jsonCodec.writeValues(dataRepository.findAll(coalesce(sort, emptySet()), coalesce(direction, ASCENDING)))
+        );
+      }
     }
   }
 
@@ -138,39 +155,40 @@ public class DataController<K, V> implements DataApi
   }
 
   @Override
-  public ResponseEntity<Void> delete(String key)
+  public ResponseEntity<? extends JsonNode> delete(String key)
   {
-    dataRepository.delete(identityParser.parse(key));
-    return ResponseEntity.ok().build();
+    return dataRepository.delete(identityParser.parse(key))
+      .map(value -> ResponseEntity.ok(jsonCodec.writeValue(value)))
+      .orElse(ResponseEntity.notFound().build());
   }
 
   @Override
-  public ResponseEntity<Void> delete(MultiValueMap<String, String> params)
+  public ResponseEntity<? extends JsonNode> delete(MultiValueMap<String, String> params)
   {
-    String query = queryBuilder.build(params);
-
-    dataRepository.deleteWhere(queryBuilder.build());
-    return ResponseEntity.ok().build();
+    Collection<ID> identities = parameterIdentityParser.parse(params);
+    return !identities.isEmpty()
+      ? ResponseEntity.ok(jsonCodec.writeValue(dataRepository.deleteAll(identities)))
+      : ResponseEntity.badRequest().body(error("Cannot delete all, identity parameters must be specified"));
   }
 
   @ExceptionHandler({InsertException.class, UpdateException.class, DeleteException.class})
   ResponseEntity<ObjectNode> internalServerError(RepositoryException e)
   {
-    log.error("Handling error", e);
+    log.error("Data controller error", e);
     return ResponseEntity.internalServerError().body(error(e.getMessage()));
   }
 
-  @ExceptionHandler({ ClassCastException.class, JsonException.class })
+  @ExceptionHandler({ClassCastException.class, JsonException.class})
   ResponseEntity<ObjectNode> invalidBody(RuntimeException e)
   {
-    log.error("Handling error", e);
+    log.error("Data controller error", e);
     return invalidBody();
   }
 
-  @ExceptionHandler(QueryParseException.class)
-  ResponseEntity<ObjectNode> queryParse(QueryParseException e)
+  @ExceptionHandler({IllegalParameterException.class, QueryParseException.class})
+  ResponseEntity<ObjectNode> badRequest(RuntimeException e)
   {
-    log.error("Handling error", e);
+    log.error("Data controller error", e);
     return ResponseEntity.badRequest().body(error(e.getMessage()));
   }
 
@@ -185,15 +203,5 @@ public class DataController<K, V> implements DataApi
     error.set(FIELD_MESSAGE, TextNode.valueOf(message));
 
     return error;
-  }
-
-  private Iterable<K> parseKeys(Collection<String> keys)
-  {
-    return keys.stream().map(this::parseId).toList();
-  }
-
-  private K parseId(String key)
-  {
-    return identityParser.parse(key);
   }
 }

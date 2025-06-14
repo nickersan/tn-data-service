@@ -2,15 +2,10 @@ package com.tn.service.data.parameter;
 
 import com.tn.service.IllegalParameterException;
 
-public class LongIdentityParser extends AbstractIdentityParser<Long>
+public class LongIdentityParser implements IdentityParser<String, Long>
 {
-  public LongIdentityParser(String paramName)
-  {
-    super(paramName);
-  }
-
   @Override
-  protected Long parseIdentity(String s) throws IllegalParameterException
+  public Long parse(String s) throws IllegalParameterException
   {
     try
     {
