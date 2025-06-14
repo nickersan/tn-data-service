@@ -1,19 +1,19 @@
-package com.tn.service.data.io;
+package com.tn.service.data.parameter;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class LongIdParserTest
+class IntegerIdentityParserTest
 {
   @Test
   void shouldParseKey()
   {
-    assertEquals(2, new LongIdParser().parse("2"));
+    Assertions.assertEquals(2, new IntegerIdentityParser().parse("2"));
   }
 
   @ParameterizedTest
@@ -21,6 +21,6 @@ class LongIdParserTest
   @ValueSource(strings = {"", "X"})
   void shouldThrowInvalidKeyException(String invalidKey)
   {
-    assertThrows(InvalidIdException.class, () -> new LongIdParser().parse(invalidKey));
+    assertThrows(InvalidIdException.class, () -> new IntegerIdentityParser().parse(invalidKey));
   }
 }

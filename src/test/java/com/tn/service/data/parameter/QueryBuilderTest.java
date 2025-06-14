@@ -1,4 +1,4 @@
-package com.tn.service.data.query;
+package com.tn.service.data.parameter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

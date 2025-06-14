@@ -44,9 +44,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import com.tn.lang.util.Page;
 import com.tn.service.data.domain.Direction;
 import com.tn.service.data.io.DefaultJsonCodec;
-import com.tn.service.data.io.IdParser;
 import com.tn.service.data.io.JsonCodec;
-import com.tn.service.data.query.QueryBuilder;
+import com.tn.service.data.parameter.IdentityParser;
+import com.tn.service.data.parameter.QueryBuilder;
 import com.tn.service.data.repository.DataRepository;
 import com.tn.service.data.repository.DeleteException;
 import com.tn.service.data.repository.InsertException;
@@ -70,12 +70,12 @@ class DataApiIntegrationTest
   DataRepository<Integer, Value> dataRepository;
 
   @Autowired
-  IdParser<Integer> idParser;
+  IdentityParser<Integer> identityParser;
 
   @BeforeEach
   void resetMocks()
   {
-    reset(dataRepository, idParser);
+    reset(dataRepository, identityParser);
   }
 
   @Test
@@ -119,7 +119,7 @@ class DataApiIntegrationTest
   {
     Value value = new Value(123, "TEST");
 
-    when(idParser.parse(value.id().toString())).thenReturn(value.id());
+    when(identityParser.parse(value.id().toString())).thenReturn(value.id());
     when(dataRepository.find(value.id())).thenReturn(Optional.of(value));
 
     ResponseEntity<Value> response = testRestTemplate.getForEntity("/" + value.id(), Value.class);
@@ -134,8 +134,8 @@ class DataApiIntegrationTest
     Value value1 = new Value(1, "ONE");
     Value value2 = new Value(2, "TWO");
 
-    when(idParser.parse(value1.id().toString())).thenReturn(value1.id());
-    when(idParser.parse(value2.id().toString())).thenReturn(value2.id());
+    when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
+    when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
     when(dataRepository.findWhere(format("(id=%s||id=%s)", value1.id(), value2.id()), emptySet(), ASCENDING)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
@@ -155,8 +155,8 @@ class DataApiIntegrationTest
     Value value1 = new Value(1, "ONE");
     Value value2 = new Value(2, "TWO");
 
-    when(idParser.parse(value1.id().toString())).thenReturn(value1.id());
-    when(idParser.parse(value2.id().toString())).thenReturn(value2.id());
+    when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
+    when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
       format("/?id=%s&id=%s", value1.id(), value2.id()),
@@ -178,8 +178,8 @@ class DataApiIntegrationTest
 
     String sort = "name";
 
-    when(idParser.parse(value1.id().toString())).thenReturn(value1.id());
-    when(idParser.parse(value2.id().toString())).thenReturn(value2.id());
+    when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
+    when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
     when(dataRepository.findWhere(format("(id=%s||id=%s)", value1.id(), value2.id()), Set.of(sort), ASCENDING)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
@@ -200,8 +200,8 @@ class DataApiIntegrationTest
     Value value1 = new Value(1, "ONE");
     Value value2 = new Value(2, "TWO");
 
-    when(idParser.parse(value1.id().toString())).thenReturn(value1.id());
-    when(idParser.parse(value2.id().toString())).thenReturn(value2.id());
+    when(identityParser.parse(value1.id().toString())).thenReturn(value1.id());
+    when(identityParser.parse(value2.id().toString())).thenReturn(value2.id());
     when(dataRepository.findWhere(format("(id=%s||id=%s)", value1.id(), value2.id()), emptySet(), DESCENDING)).thenReturn(List.of(value1, value2));
 
     ResponseEntity<List<Value>> response = testRestTemplate.exchange(
@@ -405,7 +405,7 @@ class DataApiIntegrationTest
   {
     Integer id = 123;
 
-    when(idParser.parse(id.toString())).thenReturn(id);
+    when(identityParser.parse(id.toString())).thenReturn(id);
     when(dataRepository.find(id)).thenReturn(Optional.empty());
 
     ResponseEntity<Value> response = testRestTemplate.getForEntity("/" + id, Value.class);
@@ -536,7 +536,7 @@ class DataApiIntegrationTest
   {
     int id = 123;
 
-    when(idParser.parse(Integer.toString(id))).thenReturn(id);
+    when(identityParser.parse(Integer.toString(id))).thenReturn(id);
 
     ResponseEntity<Void> response = testRestTemplate.exchange("/" + id, DELETE, null, Void.class);
 
@@ -551,8 +551,8 @@ class DataApiIntegrationTest
     int id1 = 123;
     int id2 = 234;
 
-    when(idParser.parse(Integer.toString(id1))).thenReturn(id1);
-    when(idParser.parse(Integer.toString(id2))).thenReturn(id2);
+    when(identityParser.parse(Integer.toString(id1))).thenReturn(id1);
+    when(identityParser.parse(Integer.toString(id2))).thenReturn(id2);
 
     ResponseEntity<Void> response = testRestTemplate.exchange(
       format("/?id=%s&id=%s", id1, id2),
@@ -571,7 +571,7 @@ class DataApiIntegrationTest
   {
     int id = 123;
 
-    when(idParser.parse(Integer.toString(id))).thenReturn(id);
+    when(identityParser.parse(Integer.toString(id))).thenReturn(id);
     doThrow(new DeleteException("TESTING")).when(dataRepository).delete(id);
 
     ResponseEntity<ObjectNode> response = testRestTemplate.exchange("/" + id, DELETE, null, ObjectNode.class);
@@ -591,10 +591,10 @@ class DataApiIntegrationTest
   static class TestConfiguration
   {
     @Bean
-    IdParser<Integer> idParser()
+    IdentityParser<Integer> idParser()
     {
       //noinspection unchecked
-      return mock(IdParser.class);
+      return mock(IdentityParser.class);
     }
 
     @Bean

@@ -25,10 +25,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.tn.query.QueryParseException;
 import com.tn.service.data.api.DataApi;
 import com.tn.service.data.domain.Direction;
-import com.tn.service.data.io.IdParser;
 import com.tn.service.data.io.JsonCodec;
 import com.tn.service.data.io.JsonException;
-import com.tn.service.data.query.QueryBuilder;
+import com.tn.service.data.parameter.IdentityParser;
+import com.tn.service.data.parameter.QueryBuilder;
 import com.tn.service.data.repository.DataRepository;
 import com.tn.service.data.repository.DeleteException;
 import com.tn.service.data.repository.InsertException;
@@ -39,7 +39,7 @@ import com.tn.service.data.repository.UpdateException;
 @RestController
 @RequestMapping("${tn.service.data.path.root:}")
 @ConditionalOnWebApplication
-@ConditionalOnBean({DataRepository.class, IdParser.class, JsonCodec.class, QueryBuilder.class})
+@ConditionalOnBean({DataRepository.class, IdentityParser.class, JsonCodec.class, QueryBuilder.class})
 public class DataController<K, V> implements DataApi
 {
   public static final int DEFAULT_PAGE_NUMBER = 0;
@@ -47,13 +47,13 @@ public class DataController<K, V> implements DataApi
   public static final String FIELD_MESSAGE = "message";
 
   private final DataRepository<K, V> dataRepository;
-  private final IdParser<K> idParser;
+  private final IdentityParser<K> identityParser;
   private final JsonCodec<V>  jsonCodec;
   private final QueryBuilder queryBuilder;
 
-  public DataController(IdParser<K> idParser, JsonCodec<V> jsonCodec, QueryBuilder queryBuilder, DataRepository<K, V> dataRepository)
+  public DataController(IdentityParser<K> identityParser, JsonCodec<V> jsonCodec, QueryBuilder queryBuilder, DataRepository<K, V> dataRepository)
   {
-    this.idParser = idParser;
+    this.identityParser = identityParser;
     this.jsonCodec = jsonCodec;
     this.queryBuilder = queryBuilder;
     this.dataRepository = dataRepository;
@@ -62,7 +62,7 @@ public class DataController<K, V> implements DataApi
   @Override
   public ResponseEntity<? extends JsonNode> get(String id)
   {
-    return dataRepository.find(parseKey(id))
+    return dataRepository.find(parseId(id))
       .map(value -> ResponseEntity.ok(jsonCodec.writeValue(value)))
       .orElse(ResponseEntity.notFound().build());
   }
@@ -76,6 +76,13 @@ public class DataController<K, V> implements DataApi
     Direction direction
   )
   {
+    Collection<K> identities = identityParser.parse(params);
+    if (!identities.isEmpty())
+    {
+
+    }
+
+
     String query = queryBuilder.build(params);
 
     if (isNotNullOrWhitespace(query))
@@ -133,14 +140,16 @@ public class DataController<K, V> implements DataApi
   @Override
   public ResponseEntity<Void> delete(String key)
   {
-    dataRepository.delete(idParser.parse(key));
+    dataRepository.delete(identityParser.parse(key));
     return ResponseEntity.ok().build();
   }
 
   @Override
-  public ResponseEntity<Void> delete(Collection<String> keys)
+  public ResponseEntity<Void> delete(MultiValueMap<String, String> params)
   {
-    dataRepository.deleteAll(parseKeys(keys));
+    String query = queryBuilder.build(params);
+
+    dataRepository.deleteWhere(queryBuilder.build());
     return ResponseEntity.ok().build();
   }
 
@@ -180,11 +189,11 @@ public class DataController<K, V> implements DataApi
 
   private Iterable<K> parseKeys(Collection<String> keys)
   {
-    return keys.stream().map(this::parseKey).toList();
+    return keys.stream().map(this::parseId).toList();
   }
 
-  private K parseKey(String key)
+  private K parseId(String key)
   {
-    return idParser.parse(key);
+    return identityParser.parse(key);
   }
 }

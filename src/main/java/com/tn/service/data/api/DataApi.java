@@ -41,6 +41,6 @@ public interface DataApi
   ResponseEntity<Void> delete(@PathVariable("id") String id);
 
   @DeleteMapping
-  ResponseEntity<Void> delete(@RequestParam(value = "id") Collection<String> id);
+  ResponseEntity<Void> delete(@RequestParam(required = false) MultiValueMap<String, String> params);
 
 }

@@ -5,7 +5,6 @@ import static java.util.Collections.emptySet;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import com.tn.lang.util.Page;
 import com.tn.service.data.domain.Direction;
@@ -29,12 +28,14 @@ public interface DataRepository<K, V>
   Page<V> findAll(int pageNumber, int pageSize, Iterable<String> sort, Direction direction) throws FindException;
 
   @SuppressWarnings("unchecked")
-  default Collection<V> findAll(K... keys)
+  default Collection<V> findAll(K... keys) throws FindException
   {
-    return findAll(Set.of(keys));
+    return findAll(List.of(keys));
   }
 
-  Collection<V> findAll(Iterable<K> keys);
+  Collection<V> findAll(Iterable<K> keys, Collection<String> sort, Direction direction) throws FindException;
+
+  Collection<V> findAll(Iterable<K> keys) throws FindException;
 
   default Collection<V> findWhere(String query) throws FindException
   {
