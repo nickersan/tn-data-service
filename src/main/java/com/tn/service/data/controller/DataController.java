@@ -8,6 +8,9 @@ import static com.tn.service.data.domain.Direction.ASCENDING;
 
 import java.util.Collection;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -48,9 +51,11 @@ public class DataController<ID, V> implements DataApi
   public static final int DEFAULT_PAGE_NUMBER = 0;
   public static final int DEFAULT_PAGE_SIZE = 100;
   public static final String FIELD_MESSAGE = "message";
+  private static final String FIELD_DETAIL = "detail";
 
   private final DataRepository<ID, V> dataRepository;
   private final IdentityParser<String, ID> identityParser;
+  private final Validator validator;
   private final IdentityParser<MultiValueMap<String, String>, Collection<ID>> parameterIdentityParser;
   private final JsonCodec<V>  jsonCodec;
   private final QueryBuilder queryBuilder;
@@ -59,12 +64,14 @@ public class DataController<ID, V> implements DataApi
   public DataController(
     IdentityParser<String, ID> identityParser,
     JsonCodec<V> jsonCodec,
+    Validator validator,
     QueryBuilder queryBuilder,
     DataRepository<ID, V> dataRepository,
     @Value("${tn.service.data.identity.param-name:id}") String identityParameterName
   )
   {
     this.identityParser = identityParser;
+    this.validator = validator;
     this.parameterIdentityParser = new ParameterIdentityParser<>(identityParser, identityParameterName);
     this.jsonCodec = jsonCodec;
     this.queryBuilder = queryBuilder;
@@ -121,11 +128,19 @@ public class DataController<ID, V> implements DataApi
   {
     if (request.getBody() instanceof ObjectNode)
     {
-      return ResponseEntity.ok(jsonCodec.writeValue(dataRepository.insert(jsonCodec.readValue(request.getBody()))));
+      V entity = jsonCodec.readValue(request.getBody());
+      Collection<ConstraintViolation<V>> constraintViolations = validate(entity);
+      if (!constraintViolations.isEmpty()) return ResponseEntity.badRequest().body(error(constraintViolations));
+
+      return ResponseEntity.ok(jsonCodec.writeValue(dataRepository.insert(entity)));
     }
     else if (request.getBody() instanceof ArrayNode)
     {
-      return ResponseEntity.ok(jsonCodec.writeValues(dataRepository.insertAll(jsonCodec.readValues((ArrayNode)request.getBody()))));
+      Collection<V> entities = jsonCodec.readValues((ArrayNode)request.getBody());
+      Collection<ConstraintViolation<V>> constraintViolations = validateAll(entities);
+      if (!constraintViolations.isEmpty()) return ResponseEntity.badRequest().body(error(constraintViolations));
+
+      return ResponseEntity.ok(jsonCodec.writeValues(dataRepository.insertAll(entities)));
     }
     else
     {
@@ -138,11 +153,19 @@ public class DataController<ID, V> implements DataApi
   {
     if (request.getBody() instanceof ObjectNode)
     {
-      return ResponseEntity.ok(jsonCodec.writeValue(dataRepository.update(jsonCodec.readValue(request.getBody()))));
+      V entity = jsonCodec.readValue(request.getBody());
+      Collection<ConstraintViolation<V>> constraintViolations = validate(entity);
+      if (!constraintViolations.isEmpty()) return ResponseEntity.badRequest().body(error(constraintViolations));
+
+      return ResponseEntity.ok(jsonCodec.writeValue(dataRepository.update(entity)));
     }
     else if (request.getBody() instanceof ArrayNode)
     {
-      return ResponseEntity.ok(jsonCodec.writeValues(dataRepository.updateAll(jsonCodec.readValues((ArrayNode)request.getBody()))));
+      Collection<V> entities = jsonCodec.readValues((ArrayNode)request.getBody());
+      Collection<ConstraintViolation<V>> constraintViolations = validateAll(entities);
+      if (!constraintViolations.isEmpty()) return ResponseEntity.badRequest().body(error(constraintViolations));
+
+      return ResponseEntity.ok(jsonCodec.writeValues(dataRepository.updateAll(entities)));
     }
     else
     {
@@ -165,6 +188,19 @@ public class DataController<ID, V> implements DataApi
     return !identities.isEmpty()
       ? ResponseEntity.ok(jsonCodec.writeValue(dataRepository.deleteAll(identities)))
       : ResponseEntity.badRequest().body(error("Cannot delete all, identity parameters must be specified"));
+  }
+
+  private Collection<ConstraintViolation<V>> validate(V entity)
+  {
+    return validator.validate(entity);
+  }
+
+  private Collection<ConstraintViolation<V>> validateAll(Collection<V> entities)
+  {
+    return entities.stream()
+      .map(this::validate)
+      .flatMap(Collection::stream)
+      .toList();
   }
 
   @ExceptionHandler({InsertException.class, UpdateException.class, DeleteException.class})
@@ -191,6 +227,22 @@ public class DataController<ID, V> implements DataApi
   private ResponseEntity<ObjectNode> invalidBody()
   {
     return ResponseEntity.badRequest().body(error("Invalid body"));
+  }
+
+  private ObjectNode error(Collection<ConstraintViolation<V>> constraintViolations)
+  {
+    ObjectNode error = error("Invalid body");
+    error.set(
+      FIELD_DETAIL,
+      new ArrayNode(
+        null,
+        constraintViolations.stream()
+          .map(constraintViolation -> (JsonNode)TextNode.valueOf(constraintViolation.getPropertyPath() + " " + constraintViolation.getMessage()))
+          .toList()
+      )
+    );
+
+    return error;
   }
 
   private ObjectNode error(String message)
