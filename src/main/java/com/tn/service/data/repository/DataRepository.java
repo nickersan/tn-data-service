@@ -6,15 +6,15 @@ import java.util.Optional;
 import com.tn.lang.util.Page;
 import com.tn.service.data.domain.Direction;
 
-public interface DataRepository<K, V>
+public interface DataRepository<V, ID>
 {
-  Optional<V> find(K key) throws FindException;
+  Optional<V> find(ID identifier) throws FindException;
 
   Collection<V> findAll(Iterable<String> sort, Direction direction) throws FindException;
 
   Page<V> findAll(int pageNumber, int pageSize, Iterable<String> sort, Direction direction) throws FindException;
 
-  Collection<V> findAll(Iterable<K> keys) throws FindException;
+  Collection<V> findAll(Iterable<ID> identifiers) throws FindException;
 
   Collection<V> findWhere(String query, Iterable<String> sort, Direction direction) throws FindException;
 
@@ -28,7 +28,7 @@ public interface DataRepository<K, V>
 
   Collection<V> updateAll(Iterable<V> values) throws UpdateException;
 
-  Optional<V> delete(K key) throws DeleteException;
+  Optional<V> delete(ID identifier) throws DeleteException;
 
-  Collection<V>  deleteAll(Iterable<K> keys) throws DeleteException;
+  Collection<V>  deleteAll(Iterable<ID> identifiers) throws DeleteException;
 }

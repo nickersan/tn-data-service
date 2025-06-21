@@ -67,7 +67,7 @@ class DataApiIntegrationTest
   TestRestTemplate testRestTemplate;
 
   @Autowired
-  DataRepository<Integer, Value> dataRepository;
+  DataRepository<Value, Integer> dataRepository;
 
   @Autowired
   IdentityParser<String, Integer> identityParser;
@@ -567,7 +567,7 @@ class DataApiIntegrationTest
     }
 
     @Bean
-    DataRepository<Integer, Value> dataRepository()
+    DataRepository<Value, Integer> dataRepository()
     {
       //noinspection unchecked
       return mock(DataRepository.class);

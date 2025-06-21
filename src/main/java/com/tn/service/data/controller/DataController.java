@@ -46,14 +46,14 @@ import com.tn.service.data.repository.UpdateException;
 @RequestMapping("${tn.service.data.path.root:}")
 @ConditionalOnWebApplication
 @ConditionalOnBean({DataRepository.class, IdentityParser.class, JsonCodec.class, QueryBuilder.class})
-public class DataController<ID, V> implements DataApi
+public class DataController<V, ID> implements DataApi
 {
   public static final int DEFAULT_PAGE_NUMBER = 0;
   public static final int DEFAULT_PAGE_SIZE = 100;
   public static final String FIELD_MESSAGE = "message";
   private static final String FIELD_DETAIL = "detail";
 
-  private final DataRepository<ID, V> dataRepository;
+  private final DataRepository<V, ID> dataRepository;
   private final IdentityParser<String, ID> identityParser;
   private final Validator validator;
   private final IdentityParser<MultiValueMap<String, String>, Collection<ID>> parameterIdentityParser;
@@ -66,7 +66,7 @@ public class DataController<ID, V> implements DataApi
     JsonCodec<V> jsonCodec,
     Validator validator,
     QueryBuilder queryBuilder,
-    DataRepository<ID, V> dataRepository,
+    DataRepository<V, ID> dataRepository,
     @Value("${tn.service.data.identity.param-name:id}") String identityParameterName
   )
   {
