@@ -11,10 +11,6 @@ import java.util.Collection;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -25,6 +21,10 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 
 import com.tn.query.QueryParseException;
 import com.tn.service.IllegalParameterException;
@@ -237,7 +237,7 @@ public class DataController<V, ID> implements DataApi
       new ArrayNode(
         null,
         constraintViolations.stream()
-          .map(constraintViolation -> (JsonNode)TextNode.valueOf(constraintViolation.getPropertyPath() + " " + constraintViolation.getMessage()))
+          .map(constraintViolation -> (JsonNode)StringNode.valueOf(constraintViolation.getPropertyPath() + " " + constraintViolation.getMessage()))
           .toList()
       )
     );
@@ -248,7 +248,7 @@ public class DataController<V, ID> implements DataApi
   private ObjectNode error(String message)
   {
     ObjectNode error = new ObjectNode(null);
-    error.set(FIELD_MESSAGE, TextNode.valueOf(message));
+    error.set(FIELD_MESSAGE, StringNode.valueOf(message));
 
     return error;
   }

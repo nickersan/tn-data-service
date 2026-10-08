@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 
 import java.util.List;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 class DefaultJsonCodecTest
 {

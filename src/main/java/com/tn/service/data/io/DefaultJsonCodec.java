@@ -2,10 +2,10 @@ package com.tn.service.data.io;
 
 import java.util.Collection;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 public class DefaultJsonCodec<T> implements JsonCodec<T>
 {
@@ -25,7 +25,7 @@ public class DefaultJsonCodec<T> implements JsonCodec<T>
     {
       return mapper.treeToValue(jsonNode, type);
     }
-    catch (JsonProcessingException e)
+    catch (JacksonException e)
     {
       throw new JsonException("Failed to read json", e);
     }

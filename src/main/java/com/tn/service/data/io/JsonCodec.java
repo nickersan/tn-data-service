@@ -3,8 +3,8 @@ package com.tn.service.data.io;
 import java.util.Collection;
 import java.util.stream.StreamSupport;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
 
 public interface JsonCodec<T>
 {

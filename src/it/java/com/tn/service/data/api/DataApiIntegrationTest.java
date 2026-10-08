@@ -26,20 +26,21 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import com.tn.lang.util.Page;
 import com.tn.service.data.domain.Direction;
@@ -58,6 +59,7 @@ import com.tn.service.data.repository.UpdateException;
 )
 @SuppressWarnings("SpringBootApplicationProperties")
 @EnableAutoConfiguration
+@AutoConfigureTestRestTemplate
 class DataApiIntegrationTest
 {
   private static final ParameterizedTypeReference<List<Value>> TYPE_REFERENCE_LIST = new ParameterizedTypeReference<>() {};
@@ -374,7 +376,7 @@ class DataApiIntegrationTest
 
     assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
-    assertEquals("Identity parameters can only be used in isolation from other parameters", response.getBody().get(FIELD_MESSAGE).asText());
+    assertEquals("Identity parameters can only be used in isolation from other parameters", response.getBody().get(FIELD_MESSAGE).asString());
   }
 
   @Test
@@ -414,7 +416,7 @@ class DataApiIntegrationTest
 
     assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
-    assertEquals("Invalid body", response.getBody().get(FIELD_MESSAGE).asText());
+    assertEquals("Invalid body", response.getBody().get(FIELD_MESSAGE).asString());
   }
 
   @Test
@@ -428,7 +430,7 @@ class DataApiIntegrationTest
 
     assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     assertNotNull(response.getBody());
-    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
+    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asString());
   }
 
   @Test
@@ -468,7 +470,7 @@ class DataApiIntegrationTest
 
     assertTrue(response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST));
     assertNotNull(response.getBody());
-    assertEquals("Invalid body", response.getBody().get(FIELD_MESSAGE).asText());
+    assertEquals("Invalid body", response.getBody().get(FIELD_MESSAGE).asString());
   }
 
   @Test
@@ -482,7 +484,7 @@ class DataApiIntegrationTest
 
     assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     assertNotNull(response.getBody());
-    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
+    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asString());
   }
 
   @Test
@@ -535,7 +537,7 @@ class DataApiIntegrationTest
 
     assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     assertNotNull(response.getBody());
-    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asText());
+    assertEquals("TESTING", response.getBody().get(FIELD_MESSAGE).asString());
   }
 
   private HttpEntity<?> body(Object body)
