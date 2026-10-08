@@ -7,7 +7,7 @@
   <parent>
     <groupId>com.tn</groupId>
     <artifactId>tn-parent</artifactId>
-    <version>3.0.0</version>
+    <version>4.0.0</version>
   </parent>
 
   <groupId>com.tn.service.data</groupId>
@@ -16,16 +16,25 @@
 
   <packaging>jar</packaging>
 
+  <properties>
+
+    <tn-query.version>1.0.0</tn-query.version>
+    <tn-service.version>2.0.0</tn-service.version>
+
+  </properties>
+
   <dependencies>
 
     <dependency>
       <groupId>com.tn.query</groupId>
       <artifactId>tn-query</artifactId>
+      <version>${tn-query.version}</version>
     </dependency>
 
     <dependency>
       <groupId>com.tn.service</groupId>
       <artifactId>tn-service</artifactId>
+      <version>${tn-service.version}</version>
     </dependency>
 
     <!-- fixes vulnerability introduced transitively by spring-cloud-starter-contract-verifier -->
